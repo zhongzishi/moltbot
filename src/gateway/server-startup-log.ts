@@ -3,6 +3,7 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
 import { resolveConfiguredModelRef } from "../agents/model-selection.js";
 import type { loadConfig } from "../config/config.js";
 import { getResolvedLoggerSettings } from "../logging.js";
+import { audit } from "../security/audit-log.js";
 import { collectEnabledInsecureOrDangerousFlags } from "../security/dangerous-config-flags.js";
 
 export function logGatewayStartup(params: {
@@ -41,4 +42,13 @@ export function logGatewayStartup(params: {
       "Run `openclaw security audit`.";
     params.log.warn(warning);
   }
+
+  // Log gateway start to audit log
+  audit.gatewayStart({
+    port: params.port,
+    bindHost: params.bindHost,
+    tlsEnabled: params.tlsEnabled ?? false,
+    pid: process.pid,
+    nixMode: params.isNixMode,
+  });
 }

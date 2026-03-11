@@ -6,6 +6,7 @@ import type { ChannelId } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { readJsonBodyWithLimit, requestBodyErrorToText } from "../infra/http-body.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
+import { checkPromptInjection } from "../security/prompt-injection.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
 import { type HookMappingResolved, resolveHookMappings } from "./hooks-mapping.js";
 
@@ -209,14 +210,22 @@ export function normalizeHookHeaders(req: IncomingMessage) {
 export function normalizeWakePayload(
   payload: Record<string, unknown>,
 ):
-  | { ok: true; value: { text: string; mode: "now" | "next-heartbeat" } }
+  | { ok: true; value: { text: string; mode: "now" | "next-heartbeat"; injectionWarning?: string } }
   | { ok: false; error: string } {
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   if (!text) {
     return { ok: false, error: "text required" };
   }
   const mode = payload.mode === "next-heartbeat" ? "next-heartbeat" : "now";
-  return { ok: true, value: { text, mode } };
+
+  // Check for prompt injection
+  const injectionCheck = checkPromptInjection(text, { source: "hook/wake" });
+  const injectionWarning =
+    injectionCheck.highestSeverity === "high"
+      ? `[SECURITY: Potential prompt injection detected (${injectionCheck.patterns.map((p) => p.name).join(", ")})]`
+      : undefined;
+
+  return { ok: true, value: { text, mode, injectionWarning } };
 }
 
 export type HookAgentPayload = {
@@ -231,6 +240,8 @@ export type HookAgentPayload = {
   model?: string;
   thinking?: string;
   timeoutSeconds?: number;
+  agentId?: string;
+  injectionWarning?: string;
 };
 
 export type HookAgentDispatchPayload = Omit<HookAgentPayload, "sessionKey"> & {
@@ -390,6 +401,13 @@ export function normalizeAgentPayload(payload: Record<string, unknown>):
     typeof timeoutRaw === "number" && Number.isFinite(timeoutRaw) && timeoutRaw > 0
       ? Math.floor(timeoutRaw)
       : undefined;
+  // Check for prompt injection
+  const injectionCheck = checkPromptInjection(message, { source: "hook/agent" });
+  const injectionWarning =
+    injectionCheck.highestSeverity === "high"
+      ? `[SECURITY: Potential prompt injection detected (${injectionCheck.patterns.map((p) => p.name).join(", ")})]`
+      : undefined;
+
   return {
     ok: true,
     value: {
@@ -404,6 +422,7 @@ export function normalizeAgentPayload(payload: Record<string, unknown>):
       model,
       thinking,
       timeoutSeconds,
+      injectionWarning,
     },
   };
 }

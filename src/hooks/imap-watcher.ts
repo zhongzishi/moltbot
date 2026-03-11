@@ -7,6 +7,7 @@ import { ImapFlow, type FetchMessageObject } from "imapflow";
 import { simpleParser, type AddressObject } from "mailparser";
 
 import { getChildLogger } from "../logging.js";
+import { audit } from "../security/audit-log.js";
 import type { ImapAccountRuntimeConfig } from "./imap.js";
 import { loadImapCredential } from "./imap-credentials.js";
 
@@ -585,10 +586,12 @@ export async function startImapWatchers(cfg: {
 
       watcher.on("connected", () => {
         logger.info({ account: runtimeConfig.email }, "connected");
+        audit.imapConnect(runtimeConfig.email);
       });
 
       watcher.on("disconnected", () => {
         logger.warn({ account: runtimeConfig.email }, "disconnected");
+        audit.imapDisconnect(runtimeConfig.email);
       });
 
       console.log("[imap] events set up, calling start()...");
