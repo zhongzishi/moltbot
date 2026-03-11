@@ -18,6 +18,7 @@ services:
       - ~/.clawdbot/.env
     environment:
       - HOME=/root
+      - OPENCLAW_STATE_DIR=/root/.clawdbot
     networks:
       - content_matrix_network
     logging:
