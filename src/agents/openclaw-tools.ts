@@ -160,6 +160,9 @@ export function createOpenClawTools(
     }),
     createCronTool({
       agentSessionKey: options?.agentSessionKey,
+      agentTo: options?.agentTo,
+      agentChannel: options?.agentChannel,
+      requesterSenderId: options?.requesterSenderId,
     }),
     ...(messageTool ? [messageTool] : []),
     createTtsTool({

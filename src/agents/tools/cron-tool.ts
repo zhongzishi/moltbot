@@ -51,6 +51,12 @@ const CronToolSchema = Type.Object(
 
 type CronToolOptions = {
   agentSessionKey?: string;
+  /** Explicit delivery target (e.g. telegram:group:123:topic:456). */
+  agentTo?: string;
+  /** Channel for delivery (feishu, telegram, etc.). */
+  agentChannel?: string;
+  /** Sender ID as fallback for delivery.to when sessionKey inference fails. */
+  requesterSenderId?: string | null;
 };
 
 type GatewayToolCaller = typeof callGatewayTool;
@@ -403,6 +409,24 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
                   ...delivery,
                   ...inferred,
                 } satisfies CronDelivery;
+              } else {
+                // Fallback: use agentTo or requesterSenderId when sessionKey inference fails
+                // (common in isolated sessions like IMAP hooks).
+                const fallbackTo = opts.agentTo?.trim() || opts.requesterSenderId?.trim();
+                const fallbackChannel = opts.agentChannel?.trim();
+                if (fallbackTo) {
+                  const fallbackDelivery: CronDelivery = {
+                    mode: "announce",
+                    to: fallbackTo,
+                  };
+                  if (fallbackChannel) {
+                    fallbackDelivery.channel = fallbackChannel as CronMessageChannel;
+                  }
+                  (job as { delivery?: unknown }).delivery = {
+                    ...delivery,
+                    ...fallbackDelivery,
+                  } satisfies CronDelivery;
+                }
               }
             }
           }

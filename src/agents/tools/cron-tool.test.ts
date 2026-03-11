@@ -356,6 +356,59 @@ describe("cron tool", () => {
     });
   });
 
+  it("falls back to agentTo when sessionKey inference fails", async () => {
+    callGatewayMock.mockResolvedValueOnce({ ok: true });
+
+    // "main" sessionKey cannot infer a delivery target, but agentTo provides one.
+    const tool = createCronTool({
+      agentSessionKey: "main",
+      agentTo: "ou_fallback_user_id",
+      agentChannel: "feishu",
+    });
+    await tool.execute("call-fallback-agentTo", {
+      action: "add",
+      job: {
+        name: "reminder",
+        schedule: { at: new Date(123).toISOString() },
+        payload: { kind: "agentTurn", message: "hello" },
+      },
+    });
+
+    const call = callGatewayMock.mock.calls[0]?.[0] as {
+      params?: { delivery?: { mode?: string; channel?: string; to?: string } };
+    };
+    expect(call?.params?.delivery).toEqual({
+      mode: "announce",
+      channel: "feishu",
+      to: "ou_fallback_user_id",
+    });
+  });
+
+  it("falls back to requesterSenderId when agentTo is absent", async () => {
+    callGatewayMock.mockResolvedValueOnce({ ok: true });
+
+    const tool = createCronTool({
+      agentSessionKey: "main",
+      requesterSenderId: "sender_12345",
+    });
+    await tool.execute("call-fallback-senderId", {
+      action: "add",
+      job: {
+        name: "reminder",
+        schedule: { at: new Date(123).toISOString() },
+        payload: { kind: "agentTurn", message: "hello" },
+      },
+    });
+
+    const call = callGatewayMock.mock.calls[0]?.[0] as {
+      params?: { delivery?: { mode?: string; to?: string } };
+    };
+    expect(call?.params?.delivery).toEqual({
+      mode: "announce",
+      to: "sender_12345",
+    });
+  });
+
   // ── Flat-params recovery (issue #11310) ──────────────────────────────
 
   it("recovers flat params when job is missing", async () => {
