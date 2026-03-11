@@ -167,6 +167,18 @@ export const HooksImapAccountSchema = z
     port: z.number().int().positive(),
     secure: z.boolean(),
     mailbox: z.string(),
+    ownerId: z.string().optional(),
+    ownerChannel: z.string().optional(),
+    model: z.string().optional(),
+    thinking: z
+      .union([
+        z.literal("off"),
+        z.literal("minimal"),
+        z.literal("low"),
+        z.literal("medium"),
+        z.literal("high"),
+      ])
+      .optional(),
   })
   .strict();
 
