@@ -113,6 +113,10 @@ export type HooksImapAccountConfig = {
   port: number;
   secure: boolean;
   mailbox: string;
+  /** Optional model override for this IMAP account. */
+  model?: string;
+  /** Optional thinking level override for this IMAP account. */
+  thinking?: "off" | "minimal" | "low" | "medium" | "high";
 };
 
 export type HooksImapConfig = {

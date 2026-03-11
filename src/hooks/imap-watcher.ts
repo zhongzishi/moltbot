@@ -3,9 +3,13 @@
  */
 
 import { EventEmitter } from "node:events";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { ImapFlow, type FetchMessageObject } from "imapflow";
 import { simpleParser, type AddressObject } from "mailparser";
 
+import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import type { MoltbotConfig } from "../config/config.js";
 import { getChildLogger } from "../logging.js";
 import { audit } from "../security/audit-log.js";
 import type { ImapAccountRuntimeConfig } from "./imap.js";
@@ -445,15 +449,15 @@ export function setImapHookDispatcher(dispatcher: ImapHookDispatcher | null): vo
  */
 function formatEmailMessage(email: ImapEmail, accountEmail: string): string {
   const parts: string[] = [];
-  parts.push(`[IMAP HOOK] 请将以下新邮件内容转发给用户（通过Feishu发送），并提供简要摘要：`);
+  parts.push(`[IMAP HOOK] 收到新邮件，请转发给用户并提供简要摘要：`);
   parts.push("");
-  parts.push(`New email received on ${accountEmail}:`);
+  parts.push(`📧 新邮件 (${accountEmail}):`);
   parts.push("");
   if (email.from)
-    parts.push(`From: ${email.fromName ? `${email.fromName} <${email.from}>` : email.from}`);
-  if (email.to.length > 0) parts.push(`To: ${email.to.join(", ")}`);
-  if (email.subject) parts.push(`Subject: ${email.subject}`);
-  if (email.date) parts.push(`Date: ${email.date.toISOString()}`);
+    parts.push(`发件人: ${email.fromName ? `${email.fromName} <${email.from}>` : email.from}`);
+  if (email.to.length > 0) parts.push(`收件人: ${email.to.join(", ")}`);
+  if (email.subject) parts.push(`主题: ${email.subject}`);
+  if (email.date) parts.push(`时间: ${email.date.toISOString()}`);
   parts.push("");
 
   if (email.text) {
@@ -461,36 +465,89 @@ function formatEmailMessage(email: ImapEmail, accountEmail: string): string {
     const maxLen = 2000;
     const text =
       email.text.length > maxLen ? email.text.slice(0, maxLen) + "\n...(truncated)" : email.text;
-    parts.push("Content:");
+    parts.push("内容:");
     parts.push(text);
   } else if (email.html) {
-    parts.push("(HTML email - text content not available)");
+    parts.push("(HTML 邮件 - 纯文本内容不可用)");
   }
 
   return parts.join("\n");
 }
 
 /**
+ * Save email to memory for future reference.
+ */
+async function saveEmailToMemory(
+  email: ImapEmail,
+  accountEmail: string,
+  cfg: MoltbotConfig,
+): Promise<void> {
+  const logger = getChildLogger({ module: "imap-memory" });
+
+  try {
+    const agentId = resolveDefaultAgentId(cfg);
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const memoryDir = path.join(workspaceDir, "memory", "emails");
+    await fs.mkdir(memoryDir, { recursive: true });
+
+    // Create filename with date
+    const now = email.date ?? new Date();
+    const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
+    const filename = `${dateStr}.md`;
+    const memoryFilePath = path.join(memoryDir, filename);
+
+    // Format email as Markdown entry
+    const timeStr = now.toISOString().split("T")[1]?.split(".")[0] ?? "00:00:00";
+    const fromDisplay = email.fromName
+      ? `${email.fromName} <${email.from}>`
+      : (email.from ?? "unknown");
+    const subjectDisplay = email.subject ?? "(no subject)";
+
+    const entryParts = [
+      "",
+      `## ${timeStr} - ${subjectDisplay}`,
+      "",
+      `- **From**: ${fromDisplay}`,
+      `- **To**: ${email.to.join(", ") || accountEmail}`,
+      `- **Account**: ${accountEmail}`,
+      `- **UID**: ${email.uid}`,
+      `- **Message-ID**: ${email.messageId ?? "n/a"}`,
+      "",
+    ];
+
+    if (email.text) {
+      const maxLen = 1500;
+      const text =
+        email.text.length > maxLen ? email.text.slice(0, maxLen) + "\n...(truncated)" : email.text;
+      entryParts.push("**Content:**", "", text, "");
+    } else if (email.html) {
+      entryParts.push("*(HTML email - see original)*", "");
+    }
+
+    entryParts.push("---", "");
+    const entry = entryParts.join("\n");
+
+    // Check if file exists to add header
+    let existingContent = "";
+    try {
+      existingContent = await fs.readFile(memoryFilePath, "utf-8");
+    } catch {
+      // File doesn't exist, add header
+      existingContent = `# Emails - ${dateStr}\n`;
+    }
+
+    // Append new email entry
+    await fs.writeFile(memoryFilePath, existingContent + entry, "utf-8");
+    logger.info({ path: memoryFilePath, subject: email.subject }, "email saved to memory");
+  } catch (err) {
+    logger.warn({ err, subject: email.subject }, "failed to save email to memory");
+  }
+}
+
+/**
  * Start IMAP watchers for all configured accounts (called from gateway startup).
  */
-export async function startImapWatchers(cfg: {
-  hooks?: {
-    enabled?: boolean;
-    imap?: {
-      accounts?: Array<{
-        email: string;
-        host: string;
-        port: number;
-        secure?: boolean;
-        mailbox?: string;
-        model?: string;
-        thinking?: "off" | "minimal" | "low" | "medium" | "high";
-      }>;
-      model?: string;
-      thinking?: "off" | "minimal" | "low" | "medium" | "high";
-    };
-  };
-}): Promise<StartImapWatchersResult> {
+export async function startImapWatchers(cfg: MoltbotConfig): Promise<StartImapWatchersResult> {
   console.log("[imap] startImapWatchers called");
   if (!cfg.hooks?.enabled) {
     console.log("[imap] hooks not enabled");
@@ -559,6 +616,9 @@ export async function startImapWatchers(cfg: {
           { account: runtimeConfig.email, from: email.from, subject: email.subject },
           "new email received",
         );
+
+        // Save email to memory for future reference (async, don't block)
+        void saveEmailToMemory(email, runtimeConfig.email, cfg);
 
         // Dispatch to hook system
         console.log("[imap] imapHookDispatcher set?", !!imapHookDispatcher);
