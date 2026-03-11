@@ -118,7 +118,7 @@ export function createGatewayReloadHandlers(params: {
         try {
           const imapResult = await startImapWatchers(nextConfig);
           if (imapResult.started) {
-            params.logHooks.info(`imap watcher started (${imapResult.count} accounts)`);
+            params.logHooks.info(`imap watcher restarted (${imapResult.count} accounts)`);
           } else if (
             imapResult.reason &&
             imapResult.reason !== "hooks not enabled" &&
@@ -127,7 +127,7 @@ export function createGatewayReloadHandlers(params: {
             params.logHooks.warn(`imap watcher not started: ${imapResult.reason}`);
           }
         } catch (err) {
-          params.logHooks.error(`imap watcher failed to start: ${String(err)}`);
+          params.logHooks.error(`imap watcher restart failed: ${String(err)}`);
         }
       } else {
         params.logHooks.info("skipping imap watcher restart (CLAWDBOT_SKIP_IMAP_WATCHER=1)");
