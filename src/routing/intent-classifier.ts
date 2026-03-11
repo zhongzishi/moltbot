@@ -11,7 +11,8 @@ export type ClassificationResult = {
   intent: IntentClassification;
   confidence: number;
   reason: string;
-  method: "heuristic" | "llm";
+  /** Classification method: heuristic (keyword matching), llm (LLM classifier), or gemini-self-delegate */
+  method: "heuristic" | "llm" | "gemini-self-delegate";
 };
 
 export type IntentClassifierConfig = {
@@ -271,7 +272,7 @@ Respond with ONLY a JSON object in this exact format:
     return {
       intent: "light",
       confidence: 0.5,
-      reason: `LLM error, defaulting to light: ${error}`,
+      reason: `LLM error, defaulting to light: ${String(error)}`,
       method: "llm",
     };
   }

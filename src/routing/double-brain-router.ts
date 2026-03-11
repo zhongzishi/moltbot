@@ -16,7 +16,7 @@ import {
   forceLight,
   type ClassificationResult,
 } from "./intent-classifier.js";
-import { callLightBrain, buildLightBrainSystemPrompt } from "./light-brain.js";
+import { callLightBrain, buildLightBrainSystemPrompt, needsDelegation } from "./light-brain.js";
 
 export type DoubleBrainResult =
   | { handled: false; reason: string }
@@ -121,19 +121,35 @@ export async function routeDoubleBrain(params: {
       classification = forceHeavy(
         `User used ${doubleBrainConfig.overrides?.forceHeavyPrefix ?? "/code"} prefix`,
       );
+      // Force heavy - skip light brain entirely
+      return { handled: false, reason: `Routed to heavy brain: ${classification.reason}` };
     } else {
       classification = forceLight(
         `User used ${doubleBrainConfig.overrides?.forceLightPrefix ?? "/quick"} prefix`,
       );
     }
   } else {
-    // Classify intent
-    classification = await classifyIntent(message, doubleBrainConfig.intentClassifier);
-  }
+    // Determine routing based on mode
+    const mode = doubleBrainConfig.mode ?? "classify-first";
 
-  // If heavy, don't handle here - let the normal flow continue
-  if (classification.intent === "heavy") {
-    return { handled: false, reason: `Routed to heavy brain: ${classification.reason}` };
+    if (mode === "classify-first") {
+      // Original behavior: classify intent first, then route
+      classification = await classifyIntent(message, doubleBrainConfig.intentClassifier);
+
+      // If heavy, don't handle here - let the normal flow continue
+      if (classification.intent === "heavy") {
+        return { handled: false, reason: `Routed to heavy brain: ${classification.reason}` };
+      }
+    } else {
+      // New "gemini-decides" mode: send to Gemini first, let it decide
+      // Create a placeholder classification - actual decision made by Gemini
+      classification = {
+        intent: "light",
+        confidence: 1.0,
+        method: "gemini-self-delegate",
+        reason: "Gemini will decide if delegation is needed",
+      };
+    }
   }
 
   // Handle with light brain (Gemini)
@@ -170,6 +186,19 @@ export async function routeDoubleBrain(params: {
       doubleBrainConfig.lightBrain,
     );
 
+    // Check if Gemini decided it needs to delegate to Claude
+    const delegation = needsDelegation(response.text);
+    if (delegation.needs) {
+      console.log(
+        `[double-brain] Gemini requested delegation to Claude` +
+          (delegation.reason ? `: ${delegation.reason}` : ""),
+      );
+      return {
+        handled: false,
+        reason: `Gemini self-delegated to Claude${delegation.reason ? `: ${delegation.reason}` : ""}`,
+      };
+    }
+
     // Format response as ReplyPayload
     // Add a subtle indicator that this came from light brain
     const brainIndicator = `\n\n_[via ${response.model}]_`;
@@ -188,7 +217,7 @@ export async function routeDoubleBrain(params: {
     console.error("[double-brain] Light brain error, falling back to heavy:", error);
     return {
       handled: false,
-      reason: `Light brain error: ${error}. Falling back to heavy brain.`,
+      reason: `Light brain error: ${String(error)}. Falling back to heavy brain.`,
     };
   }
 }

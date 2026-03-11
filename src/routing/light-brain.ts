@@ -112,6 +112,32 @@ export async function callLightBrain(
 }
 
 /**
+ * Marker that Gemini uses to indicate it needs to delegate to Claude
+ */
+export const DELEGATE_MARKER = "[DELEGATE_TO_CLAUDE]";
+
+/**
+ * Check if Gemini's response indicates it needs to delegate to Claude
+ */
+export function needsDelegation(response: string): {
+  needs: boolean;
+  reason?: string;
+  cleanedResponse?: string;
+} {
+  if (response.includes(DELEGATE_MARKER)) {
+    // Extract reason if provided: [DELEGATE_TO_CLAUDE: reason here]
+    const match = response.match(/\[DELEGATE_TO_CLAUDE(?::\s*([^\]]+))?\]/);
+    const reason = match?.[1]?.trim();
+
+    // Remove the marker from response (in case we want to show partial response)
+    const cleanedResponse = response.replace(/\[DELEGATE_TO_CLAUDE(?::\s*[^\]]+)?\]/g, "").trim();
+
+    return { needs: true, reason, cleanedResponse };
+  }
+  return { needs: false };
+}
+
+/**
  * Build system prompt for light brain
  */
 export function buildLightBrainSystemPrompt(params: {
@@ -123,18 +149,47 @@ export function buildLightBrainSystemPrompt(params: {
 
   parts.push(`You are a helpful AI assistant (Light Brain - Gemini).
 
-IMPORTANT LIMITATIONS:
-- You can have conversations, answer questions, and analyze content provided to you
-- You CANNOT execute commands, run code, or modify files
-- You CANNOT check system status, run docker commands, or access external systems
-- You CANNOT read files from the user's system - only analyze content sent directly to you
-- If the user asks you to DO something that requires system access (check, run, fix, execute, set up cron, etc.), tell them:
-  "这个需要用 /code 前缀让 Claude 来处理，我只能回答问题和分析内容。"
-- DO NOT pretend you can do things you cannot do
-- DO NOT say "let me check" or "I will run" - you cannot do those things`);
+## YOUR CAPABILITIES:
+✓ Answer questions, explain concepts, discuss topics
+✓ Analyze content, summarize text, translate
+✓ Have conversations, provide advice, brainstorm ideas
+✓ Write text, draft messages, compose content
+
+## YOU CANNOT:
+✗ Execute commands, run code, or access the file system
+✗ Check logs, docker status, or system state
+✗ Create/edit/delete files
+✗ Run tests, build projects, or deploy
+✗ Access databases, APIs, or external services
+✗ Set up cron jobs, reminders with system integration
+
+## DELEGATION PROTOCOL:
+When the user asks you to DO something that requires system access, tools, or code execution, you MUST respond with ONLY:
+
+${DELEGATE_MARKER}
+
+Do NOT explain why. Do NOT apologize. Just output the marker and nothing else.
+
+Examples of when to delegate:
+- "帮我看看 xxx" (需要查看文件/日志)
+- "运行一下测试" (需要执行命令)
+- "检查 docker 状态" (需要系统访问)
+- "帮我改一下这个文件" (需要编辑文件)
+- "部署到生产环境" (需要执行部署)
+- "设置一个定时任务" (需要 cron)
+- "git push" (需要执行 git 命令)
+- Any request involving: check, run, execute, fix, deploy, build, edit, create, delete, grep, find
+
+Examples of what you CAN handle directly:
+- "xxx 是什么意思？" (解释概念)
+- "帮我翻译这段话" (翻译)
+- "这段代码有什么问题？" (分析，不需要运行)
+- "写一封邮件给..." (写作)
+- "今天天气怎么样？" (对话，虽然你不知道实时天气)
+- "推荐一些学习资源" (建议)`);
 
   if (params.userName) {
-    parts.push(`\nYou are chatting with ${params.userName}.`);
+    parts.push(`\n你正在和 ${params.userName} 聊天。`);
   }
 
   if (params.soulContent) {
@@ -145,9 +200,7 @@ IMPORTANT LIMITATIONS:
     parts.push("\n## Memory\n" + params.memoryContent);
   }
 
-  parts.push(
-    "\nRespond concisely and helpfully. Use the same language as the user. Never pretend to have capabilities you don't have.",
-  );
+  parts.push("\n用户使用什么语言，你就用什么语言回复。回答要简洁有帮助。");
 
   return parts.join("\n");
 }

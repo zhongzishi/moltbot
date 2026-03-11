@@ -31,7 +31,16 @@ export type HeavyBrainConfig = {
 export type DoubleBrainConfig = {
   /** Whether double-brain routing is enabled */
   enabled?: boolean;
-  /** Intent classifier configuration */
+  /**
+   * Routing mode:
+   * - "classify-first": Use intent classifier to decide routing before calling LLM (default)
+   * - "gemini-decides": Send all messages to Gemini first, let it decide if Claude is needed
+   *
+   * "gemini-decides" mode is more intelligent but adds latency for tool-heavy tasks
+   * as Gemini needs to process the message before delegating.
+   */
+  mode?: "classify-first" | "gemini-decides";
+  /** Intent classifier configuration (used when mode is "classify-first") */
   intentClassifier?: IntentClassifierConfig;
   /** Light brain (Gemini) configuration */
   lightBrain?: LightBrainConfig;

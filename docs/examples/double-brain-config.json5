@@ -43,7 +43,15 @@
     doubleBrain: {
       enabled: true,
 
-      // 意图分类器 (用 Gemini 判断轻活还是重活)
+      // 路由模式:
+      // - "classify-first": 先用意图分类器判断，再路由（默认）
+      // - "gemini-decides": 所有消息先到 Gemini，让它自己决定是否需要 Claude
+      //
+      // "gemini-decides" 模式更智能，Gemini 在理解消息后才决定是否委托
+      // 适合大部分是轻活但偶尔需要工具的场景
+      mode: "gemini-decides",
+
+      // 意图分类器配置 (仅 "classify-first" 模式使用)
       intentClassifier: {
         enabled: true,
         baseUrl: "http://localhost:8080",
