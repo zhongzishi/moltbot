@@ -130,6 +130,13 @@ describe("buildGatewayReloadPlan", () => {
     expect(plan.reloadHooks).toBe(true);
   });
 
+  it("restarts the IMAP watcher for hooks.imap changes", () => {
+    const plan = buildGatewayReloadPlan(["hooks.imap.accounts"]);
+    expect(plan.restartGateway).toBe(false);
+    expect(plan.restartImapWatcher).toBe(true);
+    expect(plan.reloadHooks).toBe(true);
+  });
+
   it("restarts providers when provider config prefixes change", () => {
     const changedPaths = ["web.enabled", "channels.telegram.botToken"];
     const plan = buildGatewayReloadPlan(changedPaths);

@@ -6,6 +6,7 @@ import { isRestartEnabled } from "../config/commands.js";
 import type { loadConfig } from "../config/config.js";
 import { startGmailWatcherWithLogs } from "../hooks/gmail-watcher-lifecycle.js";
 import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
+import { startImapWatchers, stopImapWatchers } from "../hooks/imap-watcher.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import { resetDirectoryCache } from "../infra/outbound/target-resolver.js";
@@ -109,6 +110,28 @@ export function createGatewayReloadHandlers(params: {
         onSkipped: () =>
           params.logHooks.info("skipping gmail watcher restart (OPENCLAW_SKIP_GMAIL_WATCHER=1)"),
       });
+    }
+
+    if (plan.restartImapWatcher) {
+      await stopImapWatchers().catch(() => {});
+      if (!isTruthyEnvValue(process.env.CLAWDBOT_SKIP_IMAP_WATCHER)) {
+        try {
+          const imapResult = await startImapWatchers(nextConfig);
+          if (imapResult.started) {
+            params.logHooks.info(`imap watcher started (${imapResult.count} accounts)`);
+          } else if (
+            imapResult.reason &&
+            imapResult.reason !== "hooks not enabled" &&
+            imapResult.reason !== "no imap accounts configured"
+          ) {
+            params.logHooks.warn(`imap watcher not started: ${imapResult.reason}`);
+          }
+        } catch (err) {
+          params.logHooks.error(`imap watcher failed to start: ${String(err)}`);
+        }
+      } else {
+        params.logHooks.info("skipping imap watcher restart (CLAWDBOT_SKIP_IMAP_WATCHER=1)");
+      }
     }
 
     if (plan.restartChannels.size > 0) {
