@@ -159,3 +159,30 @@ export const HooksGmailSchema = z
   })
   .strict()
   .optional();
+
+export const HooksImapAccountSchema = z
+  .object({
+    email: z.string(),
+    host: z.string(),
+    port: z.number().int().positive(),
+    secure: z.boolean(),
+    mailbox: z.string(),
+  })
+  .strict();
+
+export const HooksImapSchema = z
+  .object({
+    accounts: z.array(HooksImapAccountSchema).optional(),
+    model: z.string().optional(),
+    thinking: z
+      .union([
+        z.literal("off"),
+        z.literal("minimal"),
+        z.literal("low"),
+        z.literal("medium"),
+        z.literal("high"),
+      ])
+      .optional(),
+  })
+  .strict()
+  .optional();

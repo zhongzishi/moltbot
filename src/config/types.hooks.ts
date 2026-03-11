@@ -107,6 +107,22 @@ export type InternalHooksConfig = {
   installs?: Record<string, HookInstallRecord>;
 };
 
+export type HooksImapAccountConfig = {
+  email: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  mailbox: string;
+};
+
+export type HooksImapConfig = {
+  accounts?: HooksImapAccountConfig[];
+  /** Optional model override for IMAP hook processing (provider/model or alias). */
+  model?: string;
+  /** Optional thinking level override for IMAP hook processing. */
+  thinking?: "off" | "minimal" | "low" | "medium" | "high";
+};
+
 export type HooksConfig = {
   enabled?: boolean;
   path?: string;
@@ -136,6 +152,7 @@ export type HooksConfig = {
   transformsDir?: string;
   mappings?: HookMappingConfig[];
   gmail?: HooksGmailConfig;
+  imap?: HooksImapConfig;
   /** Internal agent event hooks */
   internal?: InternalHooksConfig;
 };

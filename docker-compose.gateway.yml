@@ -1,0 +1,29 @@
+services:
+  clawdbot-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: clawdbot-gateway
+    restart: unless-stopped
+    volumes:
+      - ~/.clawdbot:/root/.clawdbot
+      - ~/.claude:/root/.claude
+      - ~/clawd:/root/clawd
+      - ~/.clawdbot/tools:/tools
+      - /mnt/data_ssd/clawdbot/extensions:/app/extensions
+      - /mnt/data_ssd/clawdbot/dist:/app/dist
+    ports:
+      - "18789:18789"
+    environment:
+      - HOME=/root
+    networks:
+      - content_matrix_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  content_matrix_network:
+    external: true

@@ -13,6 +13,7 @@ import type { CliDeps } from "../cli/deps.js";
 import type { loadConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import { startGmailWatcherWithLogs } from "../hooks/gmail-watcher-lifecycle.js";
+import { startImapWatchers } from "../hooks/imap-watcher.js";
 import {
   clearInternalHooks,
   createInternalHookEvent,
@@ -74,6 +75,27 @@ export async function startGatewaySidecars(params: {
     cfg: params.cfg,
     log: params.logHooks,
   });
+
+  // Start IMAP watchers if configured (hooks.imap.accounts).
+  // Run async to avoid blocking gateway startup.
+  if (!isTruthyEnvValue(process.env.CLAWDBOT_SKIP_IMAP_WATCHER)) {
+    void (async () => {
+      params.logHooks.info("starting imap watchers...");
+      try {
+        const imapResult = await startImapWatchers(params.cfg);
+        params.logHooks.info(`imap watcher result: ${JSON.stringify(imapResult)}`);
+        if (imapResult.started) {
+          params.logHooks.info(
+            `imap watcher started (${imapResult.count} account${imapResult.count > 1 ? "s" : ""})`,
+          );
+        } else if (imapResult.reason) {
+          params.logHooks.warn(`imap watcher not started: ${imapResult.reason}`);
+        }
+      } catch (err) {
+        params.logHooks.error(`imap watcher failed to start: ${String(err)}`);
+      }
+    })();
+  }
 
   // Validate hooks.gmail.model if configured.
   if (params.cfg.hooks?.gmail?.model) {
