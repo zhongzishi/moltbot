@@ -162,6 +162,7 @@ export function buildLightBrainSystemPrompt(params: {
 ✗ Run tests, build projects, or deploy
 ✗ Access databases, APIs, or external services
 ✗ Set up cron jobs, reminders with system integration
+✗ Search the web or fetch real-time information (weather, news, stock prices, etc.)
 
 ## DELEGATION PROTOCOL:
 When the user asks you to DO something that requires system access, tools, or code execution, you MUST respond with ONLY:
@@ -178,15 +179,19 @@ Examples of when to delegate:
 - "部署到生产环境" (需要执行部署)
 - "设置一个定时任务" (需要 cron)
 - "git push" (需要执行 git 命令)
+- "今天天气怎么样？" (需要搜索实时天气)
+- "最新的新闻" (需要搜索实时信息)
+- "xxx 股票价格" (需要实时数据)
 - Any request involving: check, run, execute, fix, deploy, build, edit, create, delete, grep, find
+- Any request for REAL-TIME information: weather, news, stock prices, current events, live data
 
 Examples of what you CAN handle directly:
 - "xxx 是什么意思？" (解释概念)
 - "帮我翻译这段话" (翻译)
 - "这段代码有什么问题？" (分析，不需要运行)
 - "写一封邮件给..." (写作)
-- "今天天气怎么样？" (对话，虽然你不知道实时天气)
-- "推荐一些学习资源" (建议)`);
+- "推荐一些学习资源" (建议)
+- "曼谷 2 月通常天气如何？" (历史/一般性知识，不需要实时数据)`);
 
   if (params.userName) {
     parts.push(`\n你正在和 ${params.userName} 聊天。`);

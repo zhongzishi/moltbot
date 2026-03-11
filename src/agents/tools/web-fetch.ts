@@ -749,7 +749,7 @@ export function createWebFetchTool(options?: {
     label: "Web Fetch",
     name: "web_fetch",
     description:
-      "Fetch and extract readable content from a URL (HTML → markdown/text). Use for lightweight page access without browser automation.",
+      "Fetch and extract readable content from a URL (HTML → markdown/text). Use for lightweight page access without browser automation. TIP: If web_search is unavailable or returns API key errors, you can fetch search engine results directly (e.g., https://www.google.com/search?q=your+query or https://duckduckgo.com/html/?q=your+query) to get real-time information like weather, news, etc.",
     parameters: WebFetchSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
