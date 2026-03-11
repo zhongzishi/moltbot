@@ -4,10 +4,20 @@ export type MemoryBackend = "builtin" | "qmd";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 export type MemoryQmdSearchMode = "query" | "search" | "vsearch";
 
+export type TripleLayerMemoryConfig = {
+  enabled?: boolean;
+  basePath?: string;
+  soul?: { enabled?: boolean; path?: string };
+  longTerm?: { enabled?: boolean; path?: string; autoUpdate?: boolean };
+  daily?: { enabled?: boolean; dir?: string; retentionDays?: number; summarizeDays?: number };
+  qmd?: { enabled?: boolean; maxResults?: number; minScore?: number };
+};
+
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
   qmd?: MemoryQmdConfig;
+  tripleLayer?: TripleLayerMemoryConfig;
 };
 
 export type MemoryQmdConfig = {

@@ -9,12 +9,14 @@ import type { ToolFsPolicy } from "./tool-fs-policy.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
 import { createBrowserTool } from "./tools/browser-tool.js";
 import { createCanvasTool } from "./tools/canvas-tool.js";
+import { createClaudeCodeTool } from "./tools/claude-code-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
+import { createCronTool } from "./tools/cron-tool.js";
 import { createEmailMonitorTool } from "./tools/email-monitor-tool.js";
 import { createEmailSendTool } from "./tools/email-send-tool.js";
-import { createCronTool } from "./tools/cron-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
+import { createMcpProxyTool } from "./tools/mcp-proxy-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
 import { createPdfTool } from "./tools/pdf-tool.js";
@@ -24,10 +26,9 @@ import { createSessionsListTool } from "./tools/sessions-list-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
-import { createTtsTool } from "./tools/tts-tool.js";
-import { createTrelloTool } from "./tools/trello-tool.js";
-import { createMcpProxyTool } from "./tools/mcp-proxy-tool.js";
 import { createTapwizeMcpTool } from "./tools/tapwize-mcp-tool.js";
+import { createTrelloTool } from "./tools/trello-tool.js";
+import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
 
@@ -219,6 +220,9 @@ export function createOpenClawTools(
     }),
     createMcpProxyTool({
       sessionKey: options?.agentSessionKey,
+    }),
+    createClaudeCodeTool({
+      workspaceDir: options?.workspaceDir,
     }),
   ];
 

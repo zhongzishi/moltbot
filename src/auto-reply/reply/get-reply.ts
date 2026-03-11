@@ -11,6 +11,11 @@ import { resolveChannelModelOverride } from "../../channels/model-overrides.js";
 import { type OpenClawConfig, loadConfig } from "../../config/config.js";
 import { applyLinkUnderstanding } from "../../link-understanding/apply.js";
 import { applyMediaUnderstanding } from "../../media-understanding/apply.js";
+import {
+  isDoubleBrainEnabled,
+  routeDoubleBrain,
+  logRoutingDecision,
+} from "../../routing/double-brain-router.js";
 import { defaultRuntime } from "../../runtime.js";
 import { normalizeStringEntries } from "../../shared/string-normalization.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
@@ -61,6 +66,45 @@ export async function getReplyFromConfig(
 ): Promise<ReplyPayload | ReplyPayload[] | undefined> {
   const isFastTestEnv = process.env.OPENCLAW_TEST_FAST === "1";
   const cfg = configOverride ?? loadConfig();
+
+  // Double-brain routing: check if message should be handled by light brain (Gemini)
+  if (isDoubleBrainEnabled(cfg) && !opts?.isHeartbeat) {
+    const messageBody =
+      typeof ctx.BodyForCommands === "string"
+        ? ctx.BodyForCommands
+        : typeof ctx.RawBody === "string"
+          ? ctx.RawBody
+          : typeof ctx.Body === "string"
+            ? ctx.Body
+            : "";
+
+    if (messageBody.trim()) {
+      const doubleBrainResult = await routeDoubleBrain({
+        message: messageBody,
+        cfg,
+        sessionKey: ctx.SessionKey,
+        userName: ctx.SenderName ?? ctx.From,
+      });
+
+      if (doubleBrainResult.handled) {
+        // Log routing decision
+        logRoutingDecision({
+          sessionKey: ctx.SessionKey,
+          message: messageBody,
+          classification: doubleBrainResult.classification,
+          brain: doubleBrainResult.brain,
+        });
+        // Return light brain response directly
+        return doubleBrainResult.reply;
+      }
+
+      // If not handled (routed to heavy brain), continue with normal flow
+      if (!doubleBrainResult.handled) {
+        defaultRuntime.log(`[double-brain] ${doubleBrainResult.reason}`);
+      }
+    }
+  }
+
   const targetSessionKey =
     ctx.CommandSource === "native" ? ctx.CommandTargetSessionKey?.trim() : undefined;
   const agentSessionKey = targetSessionKey || ctx.SessionKey;

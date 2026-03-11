@@ -1,6 +1,8 @@
 services:
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       HOME: /home/node
       TERM: xterm-256color

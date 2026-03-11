@@ -1,0 +1,139 @@
+// Double-Brain + Triple-Layer Memory Configuration Example
+// 双脑分流 + 三层记忆配置示例
+//
+// 快脑 (Light Brain): Gemini 3 via Antigravity Proxy
+// 慢脑 (Heavy Brain): Claude Code CLI
+// 三层记忆: SOUL.md + MEMORY.md + daily logs + QMD semantic search
+{
+  // Antigravity Proxy 模型配置
+  // 需要先启动 Antigravity Proxy: cd ~/antigravity-claude-proxy && bun run start
+  models: {
+    providers: {
+      antigravity: {
+        baseUrl: "http://localhost:8080/v1",
+        api: "openai-completions",
+        models: [
+          {
+            id: "gemini-3-flash",
+            name: "Gemini 3 Flash (快脑)",
+            api: "openai-completions",
+            reasoning: false,
+            input: ["text", "image"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 1000000,
+            maxTokens: 8192,
+          },
+          {
+            id: "gemini-3-pro-high",
+            name: "Gemini 3 Pro High",
+            api: "openai-completions",
+            reasoning: true,
+            input: ["text", "image"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 1000000,
+            maxTokens: 32768,
+          },
+        ],
+      },
+    },
+  },
+
+  // 双脑分流配置
+  routing: {
+    doubleBrain: {
+      enabled: true,
+
+      // 意图分类器 (用 Gemini 判断轻活还是重活)
+      intentClassifier: {
+        enabled: true,
+        baseUrl: "http://localhost:8080",
+        model: "gemini-3-flash",
+        // 自定义重活关键词
+        heavyKeywords: [
+          "refactor",
+          "重构",
+          "implement",
+          "实现",
+          "debug",
+          "调试",
+          "fix bug",
+          "修复",
+          "write code",
+          "写代码",
+        ],
+        // 代码块超过多少行算重活
+        codeBlockThreshold: 50,
+      },
+
+      // 快脑配置 (Gemini)
+      lightBrain: {
+        provider: "antigravity",
+        model: "gemini-3-flash",
+        baseUrl: "http://localhost:8080",
+      },
+
+      // 慢脑配置 (Claude Code CLI)
+      heavyBrain: {
+        type: "claude-code",
+        cliPath: "claude",
+        timeoutMs: 300000, // 5 分钟超时
+        workspaceDir: "/mnt/data_ssd/clawdbot",
+      },
+
+      // 手动覆盖前缀
+      overrides: {
+        forceHeavyPrefix: "/code", // 强制走慢脑
+        forceLightPrefix: "/quick", // 强制走快脑
+      },
+    },
+  },
+
+  // 三层记忆配置
+  memory: {
+    tripleLayer: {
+      enabled: true,
+      basePath: "~/.clawdbot/memory",
+
+      // SOUL.md - Agent 身份
+      soul: {
+        enabled: true,
+        path: "SOUL.md",
+      },
+
+      // MEMORY.md - 长期记忆
+      longTerm: {
+        enabled: true,
+        path: "MEMORY.md",
+        autoUpdate: true, // Agent 自动更新长期记忆
+      },
+
+      // 每日日志
+      daily: {
+        enabled: true,
+        dir: "daily",
+        retentionDays: 30, // 保留 30 天
+        summarizeDays: 3, // 注入最近 3 天的摘要
+      },
+
+      // QMD 语义检索
+      qmd: {
+        enabled: true,
+        maxResults: 5,
+        minScore: 0.5,
+      },
+    },
+
+    // QMD 索引配置 (可选，用于自动更新索引)
+    qmd: {
+      paths: [
+        "~/.clawdbot/memory/SOUL.md",
+        "~/.clawdbot/memory/MEMORY.md",
+        "~/.clawdbot/memory/daily/",
+      ],
+      update: {
+        onBoot: true,
+        interval: "1h",
+      },
+    },
+  },
+}

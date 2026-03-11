@@ -111,11 +111,98 @@ const MemoryQmdSchema = z
   })
   .strict();
 
+const TripleLayerMemorySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    basePath: z.string().optional(),
+    soul: z
+      .object({ enabled: z.boolean().optional(), path: z.string().optional() })
+      .strict()
+      .optional(),
+    longTerm: z
+      .object({
+        enabled: z.boolean().optional(),
+        path: z.string().optional(),
+        autoUpdate: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    daily: z
+      .object({
+        enabled: z.boolean().optional(),
+        dir: z.string().optional(),
+        retentionDays: z.number().int().optional(),
+        summarizeDays: z.number().int().optional(),
+      })
+      .strict()
+      .optional(),
+    qmd: z
+      .object({
+        enabled: z.boolean().optional(),
+        maxResults: z.number().int().optional(),
+        minScore: z.number().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .optional();
+
 const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
     qmd: MemoryQmdSchema.optional(),
+    tripleLayer: TripleLayerMemorySchema,
+  })
+  .strict()
+  .optional();
+
+const DoubleBrainConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    intentClassifier: z
+      .object({
+        enabled: z.boolean().optional(),
+        baseUrl: z.string().optional(),
+        model: z.string().optional(),
+        heavyKeywords: z.array(z.string()).optional(),
+        lightKeywords: z.array(z.string()).optional(),
+        codeBlockThreshold: z.number().int().optional(),
+      })
+      .strict()
+      .optional(),
+    lightBrain: z
+      .object({
+        provider: z.string().optional(),
+        model: z.string().optional(),
+        baseUrl: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    heavyBrain: z
+      .object({
+        type: z.union([z.literal("claude-code"), z.literal("embedded")]).optional(),
+        cliPath: z.string().optional(),
+        timeoutMs: z.number().int().optional(),
+        workspaceDir: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    overrides: z
+      .object({
+        forceHeavyPrefix: z.string().optional(),
+        forceLightPrefix: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .optional();
+
+const RoutingSchema = z
+  .object({
+    doubleBrain: DoubleBrainConfigSchema,
   })
   .strict()
   .optional();
@@ -810,6 +897,7 @@ export const OpenClawSchema = z
       .strict()
       .optional(),
     memory: MemorySchema,
+    routing: RoutingSchema,
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),

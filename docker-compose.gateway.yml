@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.gateway
     container_name: clawdbot-gateway
     restart: unless-stopped
+    network_mode: host
     volumes:
       - ~/.clawdbot:/root/.clawdbot
       - ~/.claude:/root/.claude
@@ -12,21 +13,13 @@ services:
       - ~/.clawdbot/tools:/tools
       - /mnt/data_ssd/clawdbot/extensions:/app/extensions
       - /mnt/data_ssd/clawdbot/dist:/app/dist
-    ports:
-      - "18789:18789"
     env_file:
       - ~/.clawdbot/.env
     environment:
       - HOME=/root
       - OPENCLAW_STATE_DIR=/root/.clawdbot
-    networks:
-      - content_matrix_network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  content_matrix_network:
-    external: true
