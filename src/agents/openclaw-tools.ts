@@ -11,6 +11,7 @@ import { createBrowserTool } from "./tools/browser-tool.js";
 import { createCanvasTool } from "./tools/canvas-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createEmailMonitorTool } from "./tools/email-monitor-tool.js";
+import { createEmailSendTool } from "./tools/email-send-tool.js";
 import { createCronTool } from "./tools/cron-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
@@ -212,8 +213,13 @@ export function createOpenClawTools(
     createEmailMonitorTool({
       sessionKey: options?.agentSessionKey,
     }),
-    createTrelloTool(),
-    createMcpProxyTool(),
+    createEmailSendTool(),
+    createTrelloTool({
+      sessionKey: options?.agentSessionKey,
+    }),
+    createMcpProxyTool({
+      sessionKey: options?.agentSessionKey,
+    }),
   ];
 
   const pluginTools = resolvePluginTools({
