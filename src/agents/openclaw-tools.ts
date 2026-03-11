@@ -25,6 +25,7 @@ import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createTrelloTool } from "./tools/trello-tool.js";
+import { createMcpProxyTool } from "./tools/mcp-proxy-tool.js";
 import { createTapwizeMcpTool } from "./tools/tapwize-mcp-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
@@ -212,7 +213,7 @@ export function createOpenClawTools(
       sessionKey: options?.agentSessionKey,
     }),
     createTrelloTool(),
-    createTapwizeMcpTool(),
+    createMcpProxyTool(),
   ];
 
   const pluginTools = resolvePluginTools({

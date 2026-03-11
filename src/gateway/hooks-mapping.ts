@@ -271,14 +271,15 @@ function builtinTrelloTransform(ctx: HookMappingContext): HookTransformResult {
   // Build system prompt based on action type
   const responseFormat = buildResponseFormatPrompt("trello");
 
-  const tapwizeHint = `
+  const mcpHint = `
 ## 可用工具
 
-### tapwize - TapWize 系统诊断
-- tapwize diagnose_issue: 诊断问题（传入 issue_description）
-- tapwize health_check: 检查系统健康状态
-- tapwize get_error_logs: 获取最近错误日志
-- tapwize get_system_metrics: 获取系统指标
+### mcp - MCP 服务调用
+通过 mcp 工具调用 TapWize 系统诊断功能:
+- 诊断问题: mcp(project="tapwize", action="call", tool="tapwize_diagnose_issue", args={"issue_description": "问题描述"})
+- 健康检查: mcp(project="tapwize", action="call", tool="tapwize_health_check", args={})
+- 错误日志: mcp(project="tapwize", action="call", tool="tapwize_get_error_logs", args={})
+- 系统指标: mcp(project="tapwize", action="call", tool="tapwize_get_system_metrics", args={})
 
 ### trello - Trello 卡片操作
 - trello add_comment: 在卡片上添加评论（需要 card_id 和 text）
@@ -291,23 +292,23 @@ function builtinTrelloTransform(ctx: HookMappingContext): HookTransformResult {
 ${responseFormat}
 
 ## 如果是 Bug 报告：
-1. 使用 tapwize diagnose_issue 分析问题（传入问题描述）
-2. 使用 tapwize get_error_logs 查看相关错误日志
+1. 使用 mcp 工具诊断问题: mcp(project="tapwize", action="call", tool="tapwize_diagnose_issue", args={"issue_description": "问题描述"})
+2. 使用 mcp 工具查看错误日志: mcp(project="tapwize", action="call", tool="tapwize_get_error_logs", args={})
 3. 分析完成后，使用 trello add_comment 在卡片上回复：
    - 简要说明你发现的问题原因
    - 表示"已收到反馈，问题正在处理中"
 
 ## 如果是新需求/功能请求：
-1. 使用 tapwize get_system_metrics 了解当前系统状态
+1. 使用 mcp 工具了解系统状态: mcp(project="tapwize", action="call", tool="tapwize_get_system_metrics", args={})
 2. 分析需求的可行性和影响范围
 3. 直接向我报告分析结果（不需要使用任何工具发送，你的回复会自动通知我）
    - 报告内容包括：需求概述、技术分析、建议方案、预估影响
 4. 不需要在 Trello 上回复
 
 ## 如果无法判断类型：
-先使用 tapwize 工具收集信息，然后根据分析结果决定行动。
+先使用 mcp 工具收集信息，然后根据分析结果决定行动。
 
-${tapwizeHint}
+${mcpHint}
 当前卡片 ID: ${cardId || "未知"}
 看板 ID: ${boardId}
 `;
@@ -317,17 +318,17 @@ Trello 看板上创建了新卡片。请根据卡片内容类型采取不同行�
 ${responseFormat}
 
 ## 如果是 Bug 报告：
-1. 使用 tapwize diagnose_issue 分析问题
-2. 使用 tapwize get_error_logs 查看相关错误
+1. 使用 mcp 工具诊断: mcp(project="tapwize", action="call", tool="tapwize_diagnose_issue", args={"issue_description": "问题描述"})
+2. 使用 mcp 工具查看错误: mcp(project="tapwize", action="call", tool="tapwize_get_error_logs", args={})
 3. 使用 trello add_comment 回复卡片：说明问题原因 + "问题已记录，即将修复"
 
 ## 如果是新需求/功能请求：
-1. 使用 tapwize get_system_metrics 了解系统现状
+1. 使用 mcp 工具了解系统: mcp(project="tapwize", action="call", tool="tapwize_get_system_metrics", args={})
 2. 分析需求可行性
 3. 直接向我报告分析结果（你的回复会自动通知我）
    - 报告格式：需求概述 → 技术分析 → 建议方案 → 影响评估
 
-${tapwizeHint}
+${mcpHint}
 当前卡片 ID: ${cardId || "未知"}
 看板 ID: ${boardId}
 `;
