@@ -40,7 +40,9 @@ export function transform(ctx: TrelloTransformContext) {
   const boardId = payload.model.id;
 
   // Build session key based on card (if available) or board
-  const sessionKey = cardId ? `hook:trello:card:${cardId}` : `hook:trello:board:${boardId}`;
+  const sessionKey = cardId
+    ? `hook:trello:card:${cardId}`
+    : `hook:trello:board:${boardId}`;
 
   // Build system prompt based on action type
   let systemContext = "";

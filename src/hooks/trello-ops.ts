@@ -322,3 +322,18 @@ export function extractCardId(payload: TrelloWebhookPayload): string | undefined
 export function extractBoardId(payload: TrelloWebhookPayload): string {
   return payload.model.id;
 }
+
+/**
+ * Extract the member ID of who performed the action.
+ */
+export function extractActorId(payload: TrelloWebhookPayload): string | undefined {
+  return payload.action.memberCreator?.id;
+}
+
+/**
+ * Check if the action was performed by a specific member (to skip self-actions).
+ */
+export function isActionBySelf(payload: TrelloWebhookPayload, ownerId: string): boolean {
+  const actorId = extractActorId(payload);
+  return actorId === ownerId;
+}

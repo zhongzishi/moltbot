@@ -14,6 +14,8 @@ services:
       - /mnt/data_ssd/clawdbot/dist:/app/dist
     ports:
       - "18789:18789"
+    env_file:
+      - ~/.clawdbot/.env
     environment:
       - HOME=/root
     networks:

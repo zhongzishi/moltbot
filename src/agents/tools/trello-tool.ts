@@ -140,8 +140,7 @@ EXAMPLES:
 
           case "get_cards": {
             if (!boardId) return jsonResult({ ok: false, error: "boardId required" });
-            const filter =
-              (readStringParam(params, "filter") as "all" | "open" | "closed") ?? "open";
+            const filter = (readStringParam(params, "filter") as "all" | "open" | "closed") ?? "open";
             const cards = await getBoardCards(creds, boardId, filter);
             return jsonResult({ ok: true, cards });
           }
@@ -172,11 +171,7 @@ EXAMPLES:
             if (Object.keys(updates).length === 0) {
               return jsonResult({ ok: false, error: "No updates provided" });
             }
-            const card = await updateCard(
-              creds,
-              cardId,
-              updates as Parameters<typeof updateCard>[2],
-            );
+            const card = await updateCard(creds, cardId, updates as Parameters<typeof updateCard>[2]);
             return jsonResult({ ok: true, card });
           }
 

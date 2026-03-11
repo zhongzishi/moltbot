@@ -1,14 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CONFIG_PATH, type HookMappingConfig, type HooksConfig } from "../config/config.js";
+import { buildResponseFormatPrompt } from "../hooks/hook-response-format.js";
 import { importFileModule, resolveFunctionModuleExport } from "../hooks/module-loader.js";
 import {
   extractCardId,
   formatActionMessage,
+  isActionBySelf,
   isInterestingAction,
   type TrelloWebhookPayload,
 } from "../hooks/trello-ops.js";
 import type { HookMessageChannel } from "./hooks.js";
+
+// Trello member ID of the owner - skip notifications for self-actions
+const TRELLO_OWNER_ID = "6136d01536ab5143671ab605";
 
 export type HookMappingResolved = {
   id: string;
@@ -78,9 +83,8 @@ const hookPresetMappings: Record<string, HookMappingConfig[]> = {
       action: "agent",
       wakeMode: "now",
       name: "Gmail",
-      sessionKey: "hook:gmail:{{messages[0].id}}",
-      messageTemplate:
-        "New email from {{messages[0].from}}\nSubject: {{messages[0].subject}}\n{{messages[0].snippet}}\n{{messages[0].body}}",
+      deliver: true,
+      // Transform handled by builtinGmailTransform
     },
   ],
   trello: [
@@ -192,6 +196,26 @@ export async function applyHookMappings(
       };
     }
 
+    // Built-in Gmail transform
+    if (mapping.id === "gmail") {
+      const gmailResult = builtinGmailTransform(ctx);
+      if (gmailResult === null) {
+        return { ok: true, action: null, skipped: true };
+      }
+      return {
+        ok: true,
+        action: {
+          kind: "agent",
+          message: gmailResult.message ?? "",
+          name: gmailResult.name,
+          wakeMode: gmailResult.wakeMode ?? "now",
+          sessionKey: gmailResult.sessionKey ?? `hook:gmail:${Date.now()}`,
+          deliver: gmailResult.deliver ?? mapping.deliver,
+          allowUnsafeExternalContent: mapping.allowUnsafeExternalContent,
+        },
+      };
+    }
+
     const base = buildActionFromMapping(mapping, ctx);
     if (!base.ok) {
       return base;
@@ -231,6 +255,11 @@ function builtinTrelloTransform(ctx: HookMappingContext): HookTransformResult {
     return null;
   }
 
+  // Skip self-actions (user's own operations)
+  if (isActionBySelf(payload, TRELLO_OWNER_ID)) {
+    return null;
+  }
+
   const message = formatActionMessage(payload);
   const cardId = extractCardId(payload);
   const actionType = payload.action.type;
@@ -240,31 +269,72 @@ function builtinTrelloTransform(ctx: HookMappingContext): HookTransformResult {
   const sessionKey = cardId ? `hook:trello:card:${cardId}` : `hook:trello:board:${boardId}`;
 
   // Build system prompt based on action type
+  const responseFormat = buildResponseFormatPrompt("trello");
+
+  const tapwizeHint = `
+## 可用工具
+
+### tapwize - TapWize 系统诊断
+- tapwize diagnose_issue: 诊断问题（传入 issue_description）
+- tapwize health_check: 检查系统健康状态
+- tapwize get_error_logs: 获取最近错误日志
+- tapwize get_system_metrics: 获取系统指标
+
+### trello - Trello 卡片操作
+- trello add_comment: 在卡片上添加评论（需要 card_id 和 text）
+`;
+
   let systemContext = "";
   if (actionType === "commentCard") {
     systemContext = `
-你收到了一个 Trello 卡片上的新评论。请分析评论内容：
-1. 如果是用户提出的问题或 bug 报告，尝试使用可用的工具查找相关信息
-2. 如果问题简单且你有足够信息回答，使用 trello 工具的 add_comment action 直接在卡片上回复
-3. 如果问题复杂或需要人工介入，只需通知我并附上你的发现
+你收到了一个 Trello 卡片上的新评论。请根据评论内容类型采取不同行动：
+${responseFormat}
 
+## 如果是 Bug 报告：
+1. 使用 tapwize diagnose_issue 分析问题（传入问题描述）
+2. 使用 tapwize get_error_logs 查看相关错误日志
+3. 分析完成后，使用 trello add_comment 在卡片上回复：
+   - 简要说明你发现的问题原因
+   - 表示"已收到反馈，问题正在处理中"
+
+## 如果是新需求/功能请求：
+1. 使用 tapwize get_system_metrics 了解当前系统状态
+2. 分析需求的可行性和影响范围
+3. 直接向我报告分析结果（不需要使用任何工具发送，你的回复会自动通知我）
+   - 报告内容包括：需求概述、技术分析、建议方案、预估影响
+4. 不需要在 Trello 上回复
+
+## 如果无法判断类型：
+先使用 tapwize 工具收集信息，然后根据分析结果决定行动。
+
+${tapwizeHint}
 当前卡片 ID: ${cardId || "未知"}
 看板 ID: ${boardId}
 `;
   } else if (actionType === "createCard") {
     systemContext = `
-Trello 看板上创建了新卡片。请分析卡片内容：
-1. 如果卡片描述了一个问题或任务，尝试理解其内容
-2. 如果你能提供初步分析或相关信息，使用 trello 工具添加评论
-3. 通知我关于这个新卡片
+Trello 看板上创建了新卡片。请根据卡片内容类型采取不同行动：
+${responseFormat}
 
+## 如果是 Bug 报告：
+1. 使用 tapwize diagnose_issue 分析问题
+2. 使用 tapwize get_error_logs 查看相关错误
+3. 使用 trello add_comment 回复卡片：说明问题原因 + "问题已记录，即将修复"
+
+## 如果是新需求/功能请求：
+1. 使用 tapwize get_system_metrics 了解系统现状
+2. 分析需求可行性
+3. 直接向我报告分析结果（你的回复会自动通知我）
+   - 报告格式：需求概述 → 技术分析 → 建议方案 → 影响评估
+
+${tapwizeHint}
 当前卡片 ID: ${cardId || "未知"}
 看板 ID: ${boardId}
 `;
   } else if (actionType === "updateCard") {
     systemContext = `
-Trello 卡片状态发生了变化。通知我这个变化。
-
+Trello 卡片状态发生了变化。简单通知我这个变化即可。
+${responseFormat}
 当前卡片 ID: ${cardId || "未知"}
 看板 ID: ${boardId}
 `;
@@ -275,6 +345,64 @@ Trello 卡片状态发生了变化。通知我这个变化。
     sessionKey,
     name: `Trello: ${actionType}`,
     deliver: true, // Always notify user
+    wakeMode: "now" as const,
+  };
+}
+
+type GmailMessage = {
+  id?: string;
+  from?: string;
+  subject?: string;
+  snippet?: string;
+  body?: string;
+};
+
+type GmailPayload = {
+  messages?: GmailMessage[];
+};
+
+function builtinGmailTransform(ctx: HookMappingContext): HookTransformResult {
+  const payload = ctx.payload as unknown as GmailPayload;
+
+  // Validate payload structure
+  if (!payload?.messages?.length) {
+    return null; // Skip if no messages
+  }
+
+  const msg = payload.messages[0];
+  if (!msg) return null;
+
+  const messageId = msg.id ?? `${Date.now()}`;
+  const from = msg.from ?? "未知发件人";
+  const subject = msg.subject ?? "(无主题)";
+  const snippet = msg.snippet ?? "";
+  const body = msg.body ?? "";
+
+  const responseFormat = buildResponseFormatPrompt("gmail");
+
+  const systemContext = `
+你收到了一封新邮件，请分析邮件内容并采取适当行动。
+${responseFormat}
+## 邮件信息
+- **发件人**: ${from}
+- **主题**: ${subject}
+
+## 处理指南
+1. 如果是需要回复的邮件，总结邮件内容并建议回复要点
+2. 如果是通知类邮件，简要总结关键信息
+3. 如果是垃圾邮件或营销邮件，可以简单标注忽略
+4. 如果邮件涉及紧急事项，突出提醒
+
+## 邮件内容
+${snippet}
+${body ? `\n详细内容:\n${body}` : ""}
+`;
+
+  return {
+    message: systemContext,
+    sessionKey: `hook:gmail:${messageId}`,
+    name: `Gmail: ${subject.substring(0, 30)}`,
+    deliver: true,
     wakeMode: "now" as const,
   };
 }
