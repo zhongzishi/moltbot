@@ -2,17 +2,16 @@
  * IMAP watcher using IDLE for real-time email notifications.
  */
 
+import { ImapFlow, type FetchMessageObject } from "imapflow";
+import { simpleParser, type AddressObject } from "mailparser";
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ImapFlow, type FetchMessageObject } from "imapflow";
-import { simpleParser, type AddressObject } from "mailparser";
-
+import type { OpenClawConfig } from "../config/config.js";
+import type { ImapAccountRuntimeConfig } from "./imap.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
-import type { MoltbotConfig } from "../config/config.js";
 import { getChildLogger } from "../logging.js";
 import { audit } from "../security/audit-log.js";
-import type { ImapAccountRuntimeConfig } from "./imap.js";
 import { loadImapCredential } from "./imap-credentials.js";
 
 export type ImapEmail = {
@@ -157,7 +156,9 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
 
   private async connect(): Promise<void> {
     console.log("[imap] connect() called");
-    if (this.shuttingDown) return;
+    if (this.shuttingDown) {
+      return;
+    }
 
     console.log("[imap] connecting to", this.config.host, this.config.port);
     this.logger.info({ host: this.config.host, port: this.config.port }, "connecting to IMAP");
@@ -214,7 +215,9 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
 
   private async watchMailbox(): Promise<void> {
     console.log("[imap] watchMailbox() called");
-    if (!this.client || this.shuttingDown) return;
+    if (!this.client || this.shuttingDown) {
+      return;
+    }
 
     console.log("[imap] getting mailbox lock...");
     const lock = await this.client.getMailboxLock(this.config.mailbox);
@@ -232,13 +235,25 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
         );
       }
 
+      // Flag to track if new messages arrived during IDLE
+      let pendingFetch = false;
+
       // Listen for new messages
-      this.client.on("exists", async (data: { prevCount: number; count: number }) => {
+      // Note: On EXISTS event, we set pendingFetch flag and break IDLE using NOOP.
+      // Some IMAP servers (like QQ Enterprise Mail) don't allow FETCH during IDLE
+      // and don't automatically end IDLE on EXISTS. The NOOP command interrupts IDLE
+      // and allows the fetch to happen after IDLE returns.
+      this.client.on("exists", (data: { prevCount: number; count: number }) => {
         console.log("[imap] EXISTS event:", data);
         if (data.count > data.prevCount) {
-          console.log("[imap] new message(s) detected!");
+          console.log("[imap] new message(s) detected, breaking IDLE with NOOP");
           this.logger.debug({ prevCount: data.prevCount, count: data.count }, "new message(s)");
-          await this.fetchNewMessages();
+          pendingFetch = true;
+          // Break IDLE by sending NOOP - this triggers preCheck() internally
+          // which sends DONE to end IDLE, then executes NOOP
+          this.client?.noop().catch((err: Error) => {
+            console.log("[imap] NOOP error (expected during IDLE break):", err.message);
+          });
         }
       });
 
@@ -249,11 +264,20 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
           // idle() returns when new data arrives or maxIdleTime expires
           console.log("[imap] calling client.idle()...");
           await this.client.idle();
-          console.log("[imap] IDLE returned");
+          console.log("[imap] IDLE returned, pendingFetch:", pendingFetch);
           this.logger.debug("IDLE returned, re-entering");
+
+          // Fetch new messages AFTER IDLE returns (not during EXISTS event)
+          if (pendingFetch) {
+            console.log("[imap] fetching new messages after IDLE...");
+            pendingFetch = false;
+            await this.fetchNewMessages();
+          }
         } catch (err) {
           console.log("[imap] IDLE error:", err);
-          if (this.shuttingDown) break;
+          if (this.shuttingDown) {
+            break;
+          }
           throw err;
         }
       }
@@ -264,20 +288,52 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
 
   private async fetchNewMessages(): Promise<void> {
     console.log("[imap] fetchNewMessages() called");
-    if (!this.client || this.shuttingDown) return;
+    if (!this.client || this.shuttingDown) {
+      console.log(
+        "[imap] fetchNewMessages() early return - client:",
+        !!this.client,
+        "shuttingDown:",
+        this.shuttingDown,
+      );
+      return;
+    }
 
     try {
+      // Check current mailbox state before fetching
+      const currentMailbox = this.client.mailbox;
+      console.log("[imap] current mailbox state:", {
+        exists: currentMailbox ? (currentMailbox as { exists?: number }).exists : null,
+        uidNext: currentMailbox ? (currentMailbox as { uidNext?: number }).uidNext : null,
+        lastSeenUid: this.lastSeenUid,
+      });
+
       // Fetch messages newer than last seen UID
       const range = this.lastSeenUid > 0 ? `${this.lastSeenUid + 1}:*` : "*";
       console.log("[imap] fetching range:", range);
 
-      for await (const msg of this.client.fetch(range, {
-        uid: true,
-        envelope: true,
-        source: true,
-      })) {
-        console.log("[imap] got message uid:", msg.uid);
-        if (this.shuttingDown) break;
+      let fetchCount = 0;
+      // Note: options.uid=true means the range is UID numbers, not sequence numbers
+      for await (const msg of this.client.fetch(
+        range,
+        {
+          uid: true,
+          envelope: true,
+          source: true,
+        },
+        { uid: true },
+      )) {
+        fetchCount++;
+        console.log(
+          "[imap] got message uid:",
+          msg.uid,
+          "seq:",
+          msg.seq,
+          "envelope:",
+          !!msg.envelope,
+        );
+        if (this.shuttingDown) {
+          break;
+        }
 
         // Skip if we've already seen this message
         if (msg.uid <= this.lastSeenUid) {
@@ -298,7 +354,7 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
           console.log("[imap] emitted email event");
         }
       }
-      console.log("[imap] fetchNewMessages done");
+      console.log("[imap] fetchNewMessages done, fetched:", fetchCount);
     } catch (err) {
       console.log("[imap] fetchNewMessages error:", err);
       this.logger.error({ err }, "failed to fetch new messages");
@@ -356,7 +412,9 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
   }
 
   private extractFromParsed(from: AddressObject | AddressObject[] | undefined): string | undefined {
-    if (!from) return undefined;
+    if (!from) {
+      return undefined;
+    }
     const addr = Array.isArray(from) ? from[0] : from;
     return addr?.value?.[0]?.address;
   }
@@ -364,20 +422,28 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
   private extractNameFromParsed(
     from: AddressObject | AddressObject[] | undefined,
   ): string | undefined {
-    if (!from) return undefined;
+    if (!from) {
+      return undefined;
+    }
     const addr = Array.isArray(from) ? from[0] : from;
     return addr?.value?.[0]?.name;
   }
 
   private extractToAddresses(to: AddressObject | AddressObject[] | undefined): string[] {
-    if (!to) return [];
+    if (!to) {
+      return [];
+    }
     const addrs = Array.isArray(to) ? to : [to];
     return addrs.flatMap((a) => (a.value?.map((v) => v.address).filter(Boolean) as string[]) ?? []);
   }
 
   private scheduleReconnect(): void {
-    if (this.shuttingDown || this.reconnectTimer) return;
-    if (!this.options.autoReconnect) return;
+    if (this.shuttingDown || this.reconnectTimer) {
+      return;
+    }
+    if (!this.options.autoReconnect) {
+      return;
+    }
     if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {
       this.logger.error("max reconnect attempts reached, giving up");
       return;
@@ -453,11 +519,18 @@ function formatEmailMessage(email: ImapEmail, accountEmail: string): string {
   parts.push("");
   parts.push(`📧 新邮件 (${accountEmail}):`);
   parts.push("");
-  if (email.from)
+  if (email.from) {
     parts.push(`发件人: ${email.fromName ? `${email.fromName} <${email.from}>` : email.from}`);
-  if (email.to.length > 0) parts.push(`收件人: ${email.to.join(", ")}`);
-  if (email.subject) parts.push(`主题: ${email.subject}`);
-  if (email.date) parts.push(`时间: ${email.date.toISOString()}`);
+  }
+  if (email.to.length > 0) {
+    parts.push(`收件人: ${email.to.join(", ")}`);
+  }
+  if (email.subject) {
+    parts.push(`主题: ${email.subject}`);
+  }
+  if (email.date) {
+    parts.push(`时间: ${email.date.toISOString()}`);
+  }
   parts.push("");
 
   if (email.text) {
@@ -480,7 +553,7 @@ function formatEmailMessage(email: ImapEmail, accountEmail: string): string {
 async function saveEmailToMemory(
   email: ImapEmail,
   accountEmail: string,
-  cfg: MoltbotConfig,
+  cfg: OpenClawConfig,
 ): Promise<void> {
   const logger = getChildLogger({ module: "imap-memory" });
 
@@ -547,7 +620,7 @@ async function saveEmailToMemory(
 /**
  * Start IMAP watchers for all configured accounts (called from gateway startup).
  */
-export async function startImapWatchers(cfg: MoltbotConfig): Promise<StartImapWatchersResult> {
+export async function startImapWatchers(cfg: OpenClawConfig): Promise<StartImapWatchersResult> {
   console.log("[imap] startImapWatchers called");
   if (!cfg.hooks?.enabled) {
     console.log("[imap] hooks not enabled");
