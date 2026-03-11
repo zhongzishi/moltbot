@@ -18,6 +18,7 @@ services:
     environment:
       - HOME=/root
       - OPENCLAW_STATE_DIR=/root/.clawdbot
+      - OPENCLAW_INTERNAL_LOOPBACK=1
     logging:
       driver: "json-file"
       options:

@@ -3,6 +3,7 @@ import { WebSocketServer } from "ws";
 import { CANVAS_HOST_PATH } from "../canvas-host/a2ui.js";
 import { type CanvasHostHandler, createCanvasHostHandler } from "../canvas-host/server.js";
 import type { CliDeps } from "../cli/deps.js";
+import { setImapHookDispatcher } from "../hooks/imap-watcher.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import type { PluginRegistry } from "../plugins/registry.js";
 import type { RuntimeEnv } from "../runtime.js";
@@ -110,12 +111,28 @@ export async function createGatewayRuntimeState(params: {
   const clients = new Set<GatewayWsClient>();
   const { broadcast, broadcastToConnIds } = createGatewayBroadcaster({ clients });
 
-  const handleHooksRequest = createGatewayHooksRequestHandler({
-    deps: params.deps,
-    getHooksConfig: params.hooksConfig,
-    bindHost: params.bindHost,
-    port: params.port,
-    logHooks: params.logHooks,
+  const { requestHandler: handleHooksRequest, dispatchAgentHook } =
+    createGatewayHooksRequestHandler({
+      deps: params.deps,
+      getHooksConfig: params.hooksConfig,
+      bindHost: params.bindHost,
+      port: params.port,
+      logHooks: params.logHooks,
+    });
+
+  // Connect IMAP watcher to hooks dispatcher
+  setImapHookDispatcher((opts) => {
+    dispatchAgentHook({
+      message: opts.message,
+      name: opts.name,
+      wakeMode: "now",
+      sessionKey: `imap:${opts.to ?? "default"}`,
+      deliver: opts.deliver,
+      channel: opts.channel,
+      to: opts.to,
+      model: opts.model,
+      thinking: opts.thinking,
+    });
   });
 
   const handlePluginRequest = createGatewayPluginRequestHandler({
