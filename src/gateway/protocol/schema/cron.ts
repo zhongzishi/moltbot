@@ -286,6 +286,8 @@ export const CronAddParamsSchema = Type.Object(
     payload: CronPayloadSchema,
     delivery: Type.Optional(CronDeliverySchema),
     failureAlert: Type.Optional(Type.Union([Type.Literal(false), CronFailureAlertSchema])),
+    /** Owner ID for multi-tenant isolation */
+    ownerId: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

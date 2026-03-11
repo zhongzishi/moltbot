@@ -535,6 +535,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     id,
     agentId: normalizeOptionalAgentId(input.agentId),
     sessionKey: normalizeOptionalSessionKey((input as { sessionKey?: unknown }).sessionKey),
+    ownerId: input.ownerId,
     name: normalizeRequiredName(input.name),
     description: normalizeOptionalText(input.description),
     enabled,

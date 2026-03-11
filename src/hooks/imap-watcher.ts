@@ -44,13 +44,16 @@ export type ImapWatcherOptions = {
   maxReconnectAttempts?: number;
   /** IDLE timeout in ms before re-entering IDLE (default: 25 * 60 * 1000 = 25min) */
   idleTimeoutMs?: number;
+  /** Poll interval in ms as fallback for unreliable IDLE (default: 60000 = 1min) */
+  pollIntervalMs?: number;
 };
 
 const DEFAULT_OPTIONS: Required<ImapWatcherOptions> = {
   autoReconnect: true,
   reconnectDelayMs: 5000,
   maxReconnectAttempts: Infinity,
-  idleTimeoutMs: 25 * 60 * 1000, // 25 minutes (IDLE has 29 min timeout on most servers)
+  idleTimeoutMs: 60 * 1000, // 60 seconds - exit IDLE periodically for polling
+  pollIntervalMs: 60 * 1000, // Poll every 60 seconds as fallback for unreliable IDLE
 };
 
 export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
@@ -259,19 +262,77 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
 
       // Enter IDLE loop (maxIdleTime handles auto-restart)
       console.log("[imap] entering IDLE loop...");
+      let rapidReturnCount = 0;
+      const RAPID_RETURN_THRESHOLD_MS = 5000; // If IDLE returns in <5s, it's suspicious
+      const MAX_RAPID_RETURNS = 3; // After 3 rapid returns, reconnect
+      let lastPollMs = Date.now();
+      const pollIntervalMs = this.options.pollIntervalMs;
+      console.log("[imap] poll interval:", pollIntervalMs, "ms");
+
       while (!this.shuttingDown && this.client?.usable) {
         try {
           // idle() returns when new data arrives or maxIdleTime expires
-          console.log("[imap] calling client.idle()...");
-          await this.client.idle();
-          console.log("[imap] IDLE returned, pendingFetch:", pendingFetch);
-          this.logger.debug("IDLE returned, re-entering");
+          // Use Promise.race to force timeout for polling (ImapFlow's maxIdleTime may not cause idle() to return)
+          const idleStartMs = Date.now();
+          console.log("[imap] calling client.idle() with", pollIntervalMs, "ms timeout...");
 
-          // Fetch new messages AFTER IDLE returns (not during EXISTS event)
-          if (pendingFetch) {
-            console.log("[imap] fetching new messages after IDLE...");
+          // Create a timeout promise that resolves (not rejects) after pollIntervalMs
+          const timeoutPromise = new Promise<"timeout">((resolve) =>
+            setTimeout(() => resolve("timeout"), pollIntervalMs),
+          );
+
+          // Race between IDLE and timeout
+          const result = await Promise.race([
+            this.client.idle().then(() => "idle" as const),
+            timeoutPromise,
+          ]);
+
+          const idleDurationMs = Date.now() - idleStartMs;
+          const timedOut = result === "timeout";
+          console.log(
+            "[imap] IDLE returned after",
+            idleDurationMs,
+            "ms, timedOut:",
+            timedOut,
+            "pendingFetch:",
+            pendingFetch,
+          );
+          this.logger.debug({ durationMs: idleDurationMs, timedOut }, "IDLE returned, re-entering");
+
+          // Detect rapid IDLE returns (indicates broken connection)
+          if (idleDurationMs < RAPID_RETURN_THRESHOLD_MS && !pendingFetch) {
+            rapidReturnCount++;
+            console.log("[imap] rapid IDLE return detected, count:", rapidReturnCount);
+            if (rapidReturnCount >= MAX_RAPID_RETURNS) {
+              console.log("[imap] too many rapid IDLE returns, forcing reconnect");
+              this.logger.warn("IDLE spinning detected, forcing reconnect");
+              throw new Error("IDLE spin loop detected, reconnecting");
+            }
+            // Add delay to prevent CPU spin
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else {
+            rapidReturnCount = 0; // Reset on normal IDLE duration
+          }
+
+          // Fetch new messages if:
+          // 1. EXISTS event triggered (pendingFetch)
+          // 2. Timeout reached (timedOut) - periodic poll as fallback
+          if (pendingFetch || timedOut) {
+            console.log(
+              "[imap] fetching new messages, reason:",
+              pendingFetch ? "EXISTS" : "timeout-poll",
+            );
             pendingFetch = false;
+            lastPollMs = Date.now();
             await this.fetchNewMessages();
+
+            // Check if EXISTS event fired during fetch (race condition)
+            // If so, fetch again immediately to avoid missing new email
+            while (pendingFetch && !this.shuttingDown && this.client?.usable) {
+              console.log("[imap] EXISTS event during fetch detected, fetching again...");
+              pendingFetch = false;
+              await this.fetchNewMessages();
+            }
           }
         } catch (err) {
           console.log("[imap] IDLE error:", err);

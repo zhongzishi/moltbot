@@ -30,7 +30,11 @@ export const NodePairRequestParamsSchema = Type.Object(
 export const NodePairListParamsSchema = Type.Object({}, { additionalProperties: false });
 
 export const NodePairApproveParamsSchema = Type.Object(
-  { requestId: NonEmptyString },
+  {
+    requestId: NonEmptyString,
+    /** Owner ID for multi-tenant isolation */
+    ownerId: Type.Optional(Type.String()),
+  },
   { additionalProperties: false },
 );
 
