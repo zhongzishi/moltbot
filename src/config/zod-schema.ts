@@ -116,7 +116,10 @@ const TripleLayerMemorySchema = z
     enabled: z.boolean().optional(),
     basePath: z.string().optional(),
     soul: z
-      .object({ enabled: z.boolean().optional(), path: z.string().optional() })
+      .object({
+        enabled: z.boolean().optional(),
+        path: z.string().optional(),
+      })
       .strict()
       .optional(),
     longTerm: z
@@ -131,16 +134,16 @@ const TripleLayerMemorySchema = z
       .object({
         enabled: z.boolean().optional(),
         dir: z.string().optional(),
-        retentionDays: z.number().int().optional(),
-        summarizeDays: z.number().int().optional(),
+        retentionDays: z.number().int().nonnegative().optional(),
+        summarizeDays: z.number().int().nonnegative().optional(),
       })
       .strict()
       .optional(),
     qmd: z
       .object({
         enabled: z.boolean().optional(),
-        maxResults: z.number().int().optional(),
-        minScore: z.number().optional(),
+        maxResults: z.number().int().nonnegative().optional(),
+        minScore: z.number().min(0).max(1).optional(),
       })
       .strict()
       .optional(),
@@ -960,6 +963,53 @@ export const OpenClawSchema = z
               })
               .strict(),
           )
+          .optional(),
+      })
+      .strict()
+      .optional(),
+    routing: z
+      .object({
+        doubleBrain: z
+          .object({
+            enabled: z.boolean().optional(),
+            mode: z.union([z.literal("classify-first"), z.literal("gemini-decides")]).optional(),
+            intentClassifier: z
+              .object({
+                enabled: z.boolean().optional(),
+                baseUrl: z.string().optional(),
+                model: z.string().optional(),
+                heavyKeywords: z.array(z.string()).optional(),
+                lightKeywords: z.array(z.string()).optional(),
+                codeBlockThreshold: z.number().int().nonnegative().optional(),
+              })
+              .strict()
+              .optional(),
+            lightBrain: z
+              .object({
+                provider: z.string().optional(),
+                model: z.string().optional(),
+                baseUrl: z.string().optional(),
+              })
+              .strict()
+              .optional(),
+            heavyBrain: z
+              .object({
+                type: z.union([z.literal("claude-code"), z.literal("embedded")]).optional(),
+                cliPath: z.string().optional(),
+                timeoutMs: z.number().int().nonnegative().optional(),
+                workspaceDir: z.string().optional(),
+              })
+              .strict()
+              .optional(),
+            overrides: z
+              .object({
+                forceHeavyPrefix: z.string().optional(),
+                forceLightPrefix: z.string().optional(),
+              })
+              .strict()
+              .optional(),
+          })
+          .strict()
           .optional(),
       })
       .strict()
