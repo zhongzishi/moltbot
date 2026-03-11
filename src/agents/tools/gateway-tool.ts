@@ -75,8 +75,25 @@ export function createGatewayTool(opts?: {
     label: "Gateway",
     name: "gateway",
     ownerOnly: true,
-    description:
-      "Restart, inspect a specific config schema path, apply config, or update the gateway in-place (SIGUSR1). Use config.schema.lookup with a targeted dot path before config edits. Use config.patch for safe partial config updates (merges with existing). Use config.apply only when replacing entire config. Both trigger restart after writing. Always pass a human-readable completion message via the `note` parameter so the system can deliver it to the user after restart.",
+    description: `Restart, inspect a specific config schema path, apply config, or update the gateway in-place (SIGUSR1). Use config.schema.lookup with a targeted dot path before config edits. Use config.patch for safe partial config updates (merges with existing). Use config.apply only when replacing entire config. Both trigger restart after writing. Always pass a human-readable completion message via the \`note\` parameter so the system can deliver it to the user after restart.
+
+ACTIONS:
+- restart: Restart gateway (delayMs, reason optional)
+- config.get: Get current config (returns { hash, raw })
+- config.schema: Get config JSON schema
+- config.schema.lookup: Lookup a specific config schema path
+- config.apply: Replace entire config (raw required, baseHash recommended)
+- config.patch: Merge partial config (raw required, baseHash recommended)
+- update.run: Run update (note optional)
+
+EXAMPLES:
+1. Get config: { "action": "config.get" }
+2. Get schema: { "action": "config.schema" }
+3. Patch config: { "action": "config.patch", "raw": "browser:\\n  enabled: true", "baseHash": "prev-hash" }
+4. Restart: { "action": "restart", "reason": "Config updated", "delayMs": 1000 }
+5. Update: { "action": "update.run", "note": "Updating to latest" }
+
+NOTE: Always get config first to obtain baseHash before apply/patch.`,
     parameters: GatewayToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;

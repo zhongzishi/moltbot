@@ -80,8 +80,24 @@ export function createSessionsSpawnTool(
   return {
     label: "Sessions",
     name: "sessions_spawn",
-    description:
-      'Spawn an isolated session (runtime="subagent" or runtime="acp"). mode="run" is one-shot and mode="session" is persistent/thread-bound. Subagents inherit the parent workspace directory automatically.',
+    description: `Spawn an isolated session (runtime="subagent" or runtime="acp"). mode="run" is one-shot and mode="session" is persistent/thread-bound. Subagents inherit the parent workspace directory automatically.
+
+PARAMETERS:
+- task (required): The task/prompt for the sub-agent
+- label: Optional label to identify the session later
+- agentId: Target agent id (if cross-agent spawning is allowed)
+- model: Model override (e.g., "opus", "sonnet", "anthropic/claude-opus-4-5")
+- thinking: Thinking level ("off", "low", "medium", "high", "extended")
+- runTimeoutSeconds: Max runtime (0 = no limit, default)
+- cleanup: "keep" (default) or "delete" session after completion
+
+EXAMPLES:
+1. Simple spawn: { "task": "Summarize the meeting notes" }
+2. With label: { "task": "Research competitors", "label": "research-task" }
+3. With model: { "task": "Complex analysis", "model": "opus", "thinking": "extended" }
+4. With timeout: { "task": "Quick lookup", "runTimeoutSeconds": 60, "cleanup": "delete" }
+
+RETURNS: { status: "accepted", childSessionKey: "...", runId: "..." }`,
     parameters: SessionsSpawnToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;

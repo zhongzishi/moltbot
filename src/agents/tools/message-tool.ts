@@ -612,6 +612,21 @@ function filterActionsForContext(params: {
   return params.actions.filter((action) => !BLUEBUBBLES_GROUP_ACTIONS.has(action));
 }
 
+const MESSAGE_TOOL_EXAMPLES = `
+
+COMMON PARAMETERS:
+- action (required): send, delete, react, poll, pin, thread, etc.
+- channel: telegram, discord, slack, signal, etc.
+- target: Chat/channel/user id or name
+
+EXAMPLES:
+1. Send text: { "action": "send", "channel": "telegram", "target": "123456", "message": "Hello!" }
+2. Send media: { "action": "send", "channel": "telegram", "target": "123456", "media": "/path/to/image.png" }
+3. Send with buttons (Telegram): { "action": "send", "channel": "telegram", "target": "123456", "message": "Choose:", "buttons": [[{"text": "Yes", "callback_data": "yes"}]] }
+4. React: { "action": "react", "channel": "slack", "messageId": "msg123", "emoji": "+1" }
+5. Create poll: { "action": "poll", "channel": "telegram", "target": "123456", "pollQuestion": "When?", "pollOption": ["9am", "10am"] }
+6. Delete: { "action": "delete", "channel": "telegram", "messageId": "msg123" }`;
+
 function buildMessageToolDescription(options?: {
   config?: OpenClawConfig;
   currentChannel?: string;
@@ -619,6 +634,7 @@ function buildMessageToolDescription(options?: {
 }): string {
   const baseDescription = "Send, delete, and manage messages via channel plugins.";
 
+  let actionInfo = "";
   // If we have a current channel, show its actions and list other configured channels
   if (options?.currentChannel) {
     const channelActions = filterActionsForContext({
@@ -656,14 +672,18 @@ function buildMessageToolDescription(options?: {
   }
 
   // Fallback to generic description with all configured actions
-  if (options?.config) {
+  if (!actionInfo && options?.config) {
     const actions = listChannelMessageActions(options.config);
     if (actions.length > 0) {
-      return `${baseDescription} Supports actions: ${actions.join(", ")}.`;
+      actionInfo = ` Supports actions: ${actions.join(", ")}.`;
     }
   }
 
-  return `${baseDescription} Supports actions: send, delete, react, poll, pin, threads, and more.`;
+  if (!actionInfo) {
+    actionInfo = " Supports actions: send, delete, react, poll, pin, threads, and more.";
+  }
+
+  return baseDescription + actionInfo + MESSAGE_TOOL_EXAMPLES;
 }
 
 export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {

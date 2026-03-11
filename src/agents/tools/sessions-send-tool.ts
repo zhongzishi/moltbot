@@ -40,8 +40,21 @@ export function createSessionsSendTool(opts?: {
   return {
     label: "Session Send",
     name: "sessions_send",
-    description:
-      "Send a message into another session. Use sessionKey or label to identify the target.",
+    description: `Send a message into another session. Use sessionKey or label to identify the target.
+
+PARAMETERS:
+- sessionKey: Direct session key (e.g., "main", "agent:research:abc123")
+- label: Session label to find (e.g., "meeting-summary")
+- agentId: Agent id when using label for cross-agent lookup
+- message (required): The message to send
+- timeoutSeconds: Wait for reply (0 = async/no wait, default waits)
+
+EXAMPLES:
+1. Send to main: { "sessionKey": "main", "message": "What is 2+2?" }
+2. By label: { "label": "research-task", "message": "Summarize findings" }
+3. Async send: { "label": "background", "message": "Process this", "timeoutSeconds": 0 }
+
+RETURNS: { status: "ok"|"timeout"|"error", reply: "...", sessionKey: "...", delivery: {...} }`,
     parameters: SessionsSendToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;

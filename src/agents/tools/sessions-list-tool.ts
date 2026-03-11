@@ -37,7 +37,21 @@ export function createSessionsListTool(opts?: {
   return {
     label: "Sessions",
     name: "sessions_list",
-    description: "List sessions with optional filters and last messages.",
+    description: `List sessions with optional filters and last messages.
+
+PARAMETERS:
+- kinds: Filter by session type ["main", "group", "cron", "hook", "node", "other"]
+- limit: Max sessions to return (default: 50)
+- activeMinutes: Only sessions active within N minutes
+- messageLimit: Include last N messages per session (0 = none)
+
+EXAMPLES:
+1. List all: { "limit": 50 }
+2. Recent hooks: { "kinds": ["hook"], "activeMinutes": 60 }
+3. With messages: { "limit": 20, "messageLimit": 5 }
+4. Main sessions only: { "kinds": ["main", "group"] }
+
+RETURNS: { count: N, sessions: [{ key, kind, label, channel, lastActiveAt, ... }] }`,
     parameters: SessionsListToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;

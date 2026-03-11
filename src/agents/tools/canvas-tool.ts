@@ -82,8 +82,23 @@ export function createCanvasTool(options?: { config?: OpenClawConfig }): AnyAgen
   return {
     label: "Canvas",
     name: "canvas",
-    description:
-      "Control node canvases (present/hide/navigate/eval/snapshot/A2UI). Use snapshot to capture the rendered UI.",
+    description: `Control node canvases (present/hide/navigate/eval/snapshot/A2UI). Use snapshot to capture the rendered UI.
+
+ACTIONS:
+- present: Show canvas on node (target=URL, x/y/width/height for placement)
+- hide: Hide canvas on node
+- navigate: Navigate canvas to URL (url parameter)
+- eval: Execute JavaScript in canvas (javaScript parameter)
+- snapshot: Capture canvas screenshot (outputFormat=png|jpg, maxWidth, quality)
+- a2ui_push: Push A2UI components (jsonl or jsonlPath for JSONL data)
+- a2ui_reset: Reset A2UI state
+
+EXAMPLES:
+1. Show webpage: { "action": "present", "node": "pi", "target": "https://example.com" }
+2. Navigate: { "action": "navigate", "node": "pi", "url": "https://new-page.com" }
+3. Screenshot: { "action": "snapshot", "node": "pi", "outputFormat": "png", "maxWidth": 1080 }
+4. Run JS: { "action": "eval", "node": "pi", "javaScript": "document.title" }
+5. Push A2UI: { "action": "a2ui_push", "node": "pi", "jsonl": "{\\"type\\":\\"text\\",\\"value\\":\\"Hello\\"}" }`,
     parameters: CanvasToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
