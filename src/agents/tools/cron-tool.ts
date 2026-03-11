@@ -274,7 +274,31 @@ WAKE MODES (for wake action):
 - "next-heartbeat" (default): Wake on next heartbeat
 - "now": Wake immediately
 
-Use jobId as the canonical identifier; id is accepted for compatibility. Use contextMessages (0-10) to add previous messages as context to the job text.`,
+Use jobId as the canonical identifier; id is accepted for compatibility. Use contextMessages (0-10) to add previous messages as context to the job text.
+
+EXAMPLES:
+
+1. One-shot reminder at specific time (use sessionTarget="main" + payload.kind="systemEvent"):
+{
+  "action": "add",
+  "job": {
+    "name": "充值提醒",
+    "schedule": { "kind": "at", "atMs": 1769944800000 },
+    "sessionTarget": "main",
+    "payload": { "kind": "systemEvent", "text": "⏰ 提醒：今天要充值！" }
+  }
+}
+
+2. Recurring job with cron expression (use sessionTarget="isolated" + payload.kind="agentTurn"):
+{
+  "action": "add",
+  "job": {
+    "name": "每日摘要",
+    "schedule": { "kind": "cron", "expr": "0 9 * * *", "tz": "America/Montreal" },
+    "sessionTarget": "isolated",
+    "payload": { "kind": "agentTurn", "message": "生成今日待办摘要", "deliver": true }
+  }
+}`,
     parameters: CronToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
