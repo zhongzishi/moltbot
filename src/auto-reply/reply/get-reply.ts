@@ -69,6 +69,21 @@ export async function getReplyFromConfig(
 
   // Double-brain routing: check if message should be handled by light brain (Gemini)
   if (isDoubleBrainEnabled(cfg) && !opts?.isHeartbeat) {
+    // Check if message contains media files - force heavy brain for media
+    // because media understanding requires Claude's full toolchain
+    const hasMedia = !!(
+      ctx.MediaPath ||
+      ctx.MediaUrl ||
+      (ctx.MediaPaths && ctx.MediaPaths.length > 0) ||
+      (ctx.MediaUrls && ctx.MediaUrls.length > 0)
+    );
+
+    if (hasMedia) {
+      defaultRuntime.log(
+        "[double-brain] Message contains media files, routing to heavy brain for processing",
+      );
+    }
+
     const messageBody =
       typeof ctx.BodyForCommands === "string"
         ? ctx.BodyForCommands
@@ -78,7 +93,8 @@ export async function getReplyFromConfig(
             ? ctx.Body
             : "";
 
-    if (messageBody.trim()) {
+    // Skip light brain routing if message has media files
+    if (messageBody.trim() && !hasMedia) {
       const doubleBrainResult = await routeDoubleBrain({
         message: messageBody,
         cfg,
