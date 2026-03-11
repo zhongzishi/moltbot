@@ -418,6 +418,21 @@ export function createHooksRequestHandler(
     }
     hookAuthLimiter.reset(clientKey, AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH);
 
+    // HEAD request support for webhook validation (e.g., Trello)
+    if (req.method === "HEAD") {
+      res.statusCode = 200;
+      res.end();
+      return true;
+    }
+
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.setHeader("Allow", "POST, HEAD");
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("Method Not Allowed");
+      return true;
+    }
+
     const subPath = url.pathname.slice(basePath.length).replace(/^\/+/, "");
     if (!subPath) {
       res.statusCode = 404;

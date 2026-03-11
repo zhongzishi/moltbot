@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { CONFIG_PATH, type HookMappingConfig, type HooksConfig } from "../config/config.js";
 import { importFileModule, resolveFunctionModuleExport } from "../hooks/module-loader.js";
+import {
+  extractCardId,
+  formatActionMessage,
+  isInterestingAction,
+  type TrelloWebhookPayload,
+} from "../hooks/trello-ops.js";
 import type { HookMessageChannel } from "./hooks.js";
 
 export type HookMappingResolved = {
@@ -75,6 +81,17 @@ const hookPresetMappings: Record<string, HookMappingConfig[]> = {
       sessionKey: "hook:gmail:{{messages[0].id}}",
       messageTemplate:
         "New email from {{messages[0].from}}\nSubject: {{messages[0].subject}}\n{{messages[0].snippet}}\n{{messages[0].body}}",
+    },
+  ],
+  trello: [
+    {
+      id: "trello",
+      match: { path: "trello" },
+      action: "agent",
+      wakeMode: "now",
+      name: "Trello",
+      deliver: true,
+      // Transform handled by builtinTrelloTransform
     },
   ],
 };
@@ -156,6 +173,25 @@ export async function applyHookMappings(
       continue;
     }
 
+    // Built-in Trello transform
+    if (mapping.id === "trello") {
+      const trelloResult = builtinTrelloTransform(ctx);
+      if (trelloResult === null) {
+        return { ok: true, action: null, skipped: true };
+      }
+      return {
+        ok: true,
+        action: {
+          kind: "agent",
+          message: trelloResult.message ?? "",
+          name: trelloResult.name,
+          wakeMode: trelloResult.wakeMode ?? "now",
+          sessionKey: trelloResult.sessionKey ?? `hook:trello:${Date.now()}`,
+          deliver: trelloResult.deliver ?? mapping.deliver,
+        },
+      };
+    }
+
     const base = buildActionFromMapping(mapping, ctx);
     if (!base.ok) {
       return base;
@@ -180,6 +216,67 @@ export async function applyHookMappings(
     return merged;
   }
   return null;
+}
+
+function builtinTrelloTransform(ctx: HookMappingContext): HookTransformResult {
+  const payload = ctx.payload as unknown as TrelloWebhookPayload;
+
+  // Validate payload structure
+  if (!payload?.action?.type || !payload?.model?.id) {
+    return null; // Skip invalid payloads
+  }
+
+  // Skip uninteresting actions
+  if (!isInterestingAction(payload.action)) {
+    return null;
+  }
+
+  const message = formatActionMessage(payload);
+  const cardId = extractCardId(payload);
+  const actionType = payload.action.type;
+  const boardId = payload.model.id;
+
+  // Build session key based on card (if available) or board
+  const sessionKey = cardId ? `hook:trello:card:${cardId}` : `hook:trello:board:${boardId}`;
+
+  // Build system prompt based on action type
+  let systemContext = "";
+  if (actionType === "commentCard") {
+    systemContext = `
+你收到了一个 Trello 卡片上的新评论。请分析评论内容：
+1. 如果是用户提出的问题或 bug 报告，尝试使用可用的工具查找相关信息
+2. 如果问题简单且你有足够信息回答，使用 trello 工具的 add_comment action 直接在卡片上回复
+3. 如果问题复杂或需要人工介入，只需通知我并附上你的发现
+
+当前卡片 ID: ${cardId || "未知"}
+看板 ID: ${boardId}
+`;
+  } else if (actionType === "createCard") {
+    systemContext = `
+Trello 看板上创建了新卡片。请分析卡片内容：
+1. 如果卡片描述了一个问题或任务，尝试理解其内容
+2. 如果你能提供初步分析或相关信息，使用 trello 工具添加评论
+3. 通知我关于这个新卡片
+
+当前卡片 ID: ${cardId || "未知"}
+看板 ID: ${boardId}
+`;
+  } else if (actionType === "updateCard") {
+    systemContext = `
+Trello 卡片状态发生了变化。通知我这个变化。
+
+当前卡片 ID: ${cardId || "未知"}
+看板 ID: ${boardId}
+`;
+  }
+
+  return {
+    message: systemContext + "\n\n" + message,
+    sessionKey,
+    name: `Trello: ${actionType}`,
+    deliver: true, // Always notify user
+    wakeMode: "now" as const,
+  };
 }
 
 function normalizeHookMapping(
