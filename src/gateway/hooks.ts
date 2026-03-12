@@ -240,7 +240,6 @@ export type HookAgentPayload = {
   model?: string;
   thinking?: string;
   timeoutSeconds?: number;
-  agentId?: string;
   injectionWarning?: string;
 };
 

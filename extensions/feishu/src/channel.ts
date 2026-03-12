@@ -291,27 +291,6 @@ export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
       return setFeishuNamedAccountEnabled(cfg, accountId, true);
     },
 
-    sendMedia: async ({ to, text, mediaUrl, cfg, accountId }) => {
-      const account = resolveFeishuAccount({ cfg, accountId });
-      const client = getFeishuClientFromAccount(account);
-      if (!client) {
-        return { channel: "feishu", ok: false, error: new Error("Feishu client not configured") };
-      }
-
-      // For now, send media as text with URL (Feishu image upload requires more work)
-      const message = text ? `${text}\n${mediaUrl}` : mediaUrl;
-      const isOpenId = to.startsWith("ou_");
-      const result = isOpenId
-        ? await sendFeishuTextToUser(client, to, message)
-        : await sendFeishuText(client, to, message);
-
-      return {
-        channel: "feishu",
-        ok: result.ok,
-        id: result.messageId,
-        error: result.error ? new Error(result.error) : undefined,
-      };
-    },
   },
   onboarding: feishuOnboardingAdapter,
   messaging: {

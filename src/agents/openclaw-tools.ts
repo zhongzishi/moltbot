@@ -218,12 +218,8 @@ export function createOpenClawTools(
       sessionKey: options?.agentSessionKey,
     }),
     createEmailSendTool(),
-    createTrelloTool({
-      sessionKey: options?.agentSessionKey,
-    }),
-    createMcpProxyTool({
-      sessionKey: options?.agentSessionKey,
-    }),
+    createTrelloTool({}),
+    createMcpProxyTool({}),
     createClaudeCodeTool({
       workspaceDir: options?.workspaceDir,
     }),

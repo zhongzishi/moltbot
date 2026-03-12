@@ -389,9 +389,9 @@ export function createHooksRequestHandler(
       return true;
     }
 
-    if (req.method !== "POST") {
+    if (req.method !== "POST" && req.method !== "HEAD") {
       res.statusCode = 405;
-      res.setHeader("Allow", "POST");
+      res.setHeader("Allow", "POST, HEAD");
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end("Method Not Allowed");
       return true;

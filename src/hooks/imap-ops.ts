@@ -57,7 +57,7 @@ export async function imapSetup(
       message: "Email address:",
       placeholder: "user@example.com",
       validate: (value) => {
-        if (!value.includes("@")) return "Please enter a valid email address";
+        if (!value || !value.includes("@")) return "Please enter a valid email address";
         return undefined;
       },
     });
@@ -108,7 +108,7 @@ export async function imapSetup(
           message: "IMAP port:",
           initialValue: "993",
           validate: (value) => {
-            const n = parseInt(value, 10);
+            const n = parseInt(value ?? "", 10);
             if (isNaN(n) || n < 1 || n > 65535) return "Invalid port";
             return undefined;
           },

@@ -967,53 +967,6 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
-    routing: z
-      .object({
-        doubleBrain: z
-          .object({
-            enabled: z.boolean().optional(),
-            mode: z.union([z.literal("classify-first"), z.literal("gemini-decides")]).optional(),
-            intentClassifier: z
-              .object({
-                enabled: z.boolean().optional(),
-                baseUrl: z.string().optional(),
-                model: z.string().optional(),
-                heavyKeywords: z.array(z.string()).optional(),
-                lightKeywords: z.array(z.string()).optional(),
-                codeBlockThreshold: z.number().int().nonnegative().optional(),
-              })
-              .strict()
-              .optional(),
-            lightBrain: z
-              .object({
-                provider: z.string().optional(),
-                model: z.string().optional(),
-                baseUrl: z.string().optional(),
-              })
-              .strict()
-              .optional(),
-            heavyBrain: z
-              .object({
-                type: z.union([z.literal("claude-code"), z.literal("embedded")]).optional(),
-                cliPath: z.string().optional(),
-                timeoutMs: z.number().int().nonnegative().optional(),
-                workspaceDir: z.string().optional(),
-              })
-              .strict()
-              .optional(),
-            overrides: z
-              .object({
-                forceHeavyPrefix: z.string().optional(),
-                forceLightPrefix: z.string().optional(),
-              })
-              .strict()
-              .optional(),
-          })
-          .strict()
-          .optional(),
-      })
-      .strict()
-      .optional(),
   })
   .strict()
   .superRefine((cfg, ctx) => {

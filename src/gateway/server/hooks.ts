@@ -3,7 +3,7 @@ import type { CliDeps } from "../../cli/deps.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveMainSessionKeyFromConfig } from "../../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../../cron/isolated-agent.js";
-import type { CronJob } from "../../cron/types.js";
+import type { CronJob, CronMessageChannel } from "../../cron/types.js";
 import { requestHeartbeatNow } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { setImapHookDispatcher, type ImapHookDispatcher } from "../../hooks/imap-watcher.js";
@@ -118,7 +118,7 @@ export function createGatewayHooksRequestHandler(params: {
       enabled: true,
       createdAtMs: now,
       updatedAtMs: now,
-      schedule: { kind: "at", atMs: now },
+      schedule: { kind: "at", at: new Date(now).toISOString() },
       sessionTarget: "isolated",
       wakeMode: "now",
       payload: {
@@ -127,7 +127,7 @@ export function createGatewayHooksRequestHandler(params: {
         model: value.model,
         thinking: value.thinking,
         deliver: value.deliver,
-        channel: value.channel as HookMessageChannel,
+        channel: value.channel as CronMessageChannel,
       },
       state: { nextRunAtMs: now },
     };

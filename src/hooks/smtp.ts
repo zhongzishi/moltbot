@@ -3,8 +3,11 @@
  * Reuses IMAP credentials for sending emails via SMTP.
  */
 
+// @ts-expect-error no type declarations available in this environment
 import nodemailer from "nodemailer";
+// @ts-expect-error no type declarations available in this environment
 import type { Transporter } from "nodemailer";
+// @ts-expect-error no type declarations available in this environment
 import type SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 
 import { getChildLogger } from "../logging.js";

@@ -2,7 +2,9 @@
  * IMAP watcher using IDLE for real-time email notifications.
  */
 
+// @ts-expect-error no type declarations for imapflow
 import { ImapFlow, type FetchMessageObject } from "imapflow";
+// @ts-expect-error no type declarations for mailparser
 import { simpleParser, type AddressObject } from "mailparser";
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
@@ -436,7 +438,7 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
           fromName: msg.envelope?.from?.[0]?.name,
           to:
             (msg.envelope?.to
-              ?.map((a) => this.extractEmailAddress(a))
+              ?.map((a: { address?: string }) => this.extractEmailAddress(a))
               .filter(Boolean) as string[]) ?? [],
           subject: msg.envelope?.subject,
           text: undefined,
@@ -495,7 +497,7 @@ export class ImapWatcher extends EventEmitter<ImapWatcherEvents> {
       return [];
     }
     const addrs = Array.isArray(to) ? to : [to];
-    return addrs.flatMap((a) => (a.value?.map((v) => v.address).filter(Boolean) as string[]) ?? []);
+    return addrs.flatMap((a: { value?: Array<{ address?: string }> }) => (a.value?.map((v: { address?: string }) => v.address).filter(Boolean) as string[]) ?? []);
   }
 
   private scheduleReconnect(): void {
