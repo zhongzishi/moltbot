@@ -21,6 +21,7 @@ import type {
 import { resolveCronAgentSessionKey } from "../../cron/isolated-agent/session-key.js";
 import type { CronExecutionIdentityAdmission } from "../../cron/service/state.js";
 import type { CronJob } from "../../cron/types.js";
+import { setImapHookDispatcher, type ImapHookDispatcher } from "../../hooks/imap-watcher.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import type { GatewayScheduler } from "../../infra/gateway-scheduler.js";
 import { pruneMapToMaxSize } from "../../infra/map-size.js";
@@ -39,6 +40,8 @@ import {
   type HookAgentDispatchPayload,
   type HooksConfigResolved,
   normalizeHookDispatchSessionKey,
+  resolveEffectiveHookTargetAgentId,
+  resolveHookChannel,
 } from "../hooks.js";
 import type { HookAgentCompletion, HookAgentDispatchResult } from "../hooks.types.js";
 import {
@@ -726,6 +729,49 @@ export function createGatewayHooksRequestHandler(params: {
   const { getHooksConfig, bindHost, port, logHooks, getClientIpConfig } = params;
   const { dispatchAgentHook, dispatchWakeHook } =
     params.dispatcher ?? createGatewayHookDispatcher(params);
+
+  // IMAP watcher delivers received emails in-process (poll/IDLE), unlike Gmail's
+  // Pub/Sub webhook path. Route them through the same agent-hook dispatch so email
+  // forwarding reuses isolated-turn execution and channel delivery.
+  const imapDispatcher: ImapHookDispatcher = (value) => {
+    const channel = resolveHookChannel(value.channel);
+    if (!channel) {
+      logHooks.warn(`IMAP hook ${value.name}: invalid delivery channel "${value.channel}"`);
+      return;
+    }
+    // 10.8 dispatch payloads carry a resolved agent and an explicit delivery; the
+    // webhook handler normally fills these in, so the IMAP path builds them here.
+    const hooksConfig = getHooksConfig();
+    if (!hooksConfig) {
+      logHooks.warn(`IMAP hook ${value.name}: hooks config unavailable`);
+      return;
+    }
+    const target = resolveEffectiveHookTargetAgentId(hooksConfig, undefined, "request");
+    if (!target.ok) {
+      logHooks.warn(`IMAP hook ${value.name}: ${target.error}`);
+      return;
+    }
+    dispatchAgentHook({
+      name: value.name,
+      message: value.message,
+      model: value.model,
+      thinking: value.thinking,
+      deliver: value.deliver,
+      channel,
+      to: value.to,
+      delivery:
+        value.deliver && value.to && channel !== "last"
+          ? { mode: "announce", channel, to: value.to }
+          : { mode: "none" },
+      sessionMode: "isolated",
+      effectiveAgentId: target.effectiveAgentId,
+      wakeMode: "now",
+      sessionKey: `hook:imap:${randomUUID()}`,
+      sourcePath: "imap-watcher",
+    });
+  };
+  setImapHookDispatcher(imapDispatcher);
+
   return createHooksRequestHandler({
     scheduler: params.scheduler,
     getHooksConfig,

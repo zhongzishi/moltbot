@@ -18,7 +18,12 @@ import {
 } from "./zod-schema.core.js";
 import { DesktopConfigSchema } from "./zod-schema.desktop.js";
 import { GatewayConfigSchema } from "./zod-schema.gateway.js";
-import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
+import {
+  HookMappingSchema,
+  HooksGmailSchema,
+  HooksImapSchema,
+  InternalHooksSchema,
+} from "./zod-schema.hooks.js";
 import { DiagnosticsConfigSchema, LoggingConfigSchema } from "./zod-schema.logging.js";
 import { BrowserSnapshotDefaultsSchema } from "./zod-schema.node-host.js";
 import { ProxyConfigSchema } from "./zod-schema.proxy.js";
@@ -466,6 +471,7 @@ export const OpenClawSchemaShape = {
       transformsDir: z.string().optional(),
       mappings: z.array(HookMappingSchema).optional(),
       gmail: HooksGmailSchema,
+      imap: HooksImapSchema,
       internal: InternalHooksSchema,
     })
     .superRefine((hooks, ctx) => {

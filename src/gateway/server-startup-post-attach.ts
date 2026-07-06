@@ -460,6 +460,23 @@ export async function startGatewaySidecars(params: {
     });
   }
 
+  if (params.cfg.hooks?.enabled && (params.cfg.hooks.imap?.accounts?.length ?? 0) > 0) {
+    postReadySidecars.push(
+      schedulePostReadySidecarTask({
+        startupTrace: params.startupTrace,
+        name: "sidecars.imap-watch",
+        log: params.log,
+        run: async (isStopped) => {
+          const { startImapWatchers } = await import("../hooks/imap-watcher.js");
+          if (isStopped()) {
+            return;
+          }
+          await startImapWatchers(params.cfg);
+        },
+      }),
+    );
+  }
+
   if (params.cfg.hooks?.gmail?.model) {
     scheduleSidecar({
       name: "sidecars.gmail-model",

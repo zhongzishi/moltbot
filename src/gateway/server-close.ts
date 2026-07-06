@@ -319,6 +319,11 @@ export function completeGatewayClose(
   });
 }
 
+async function stopImapWatchersOnDemand(): Promise<void> {
+  const { stopImapWatchers } = await import("../hooks/imap-watcher.js");
+  await stopImapWatchers();
+}
+
 async function closeGatewayResources(
   params: GatewayCloseParams,
   preparation: GatewayClosePreparation,
@@ -427,6 +432,7 @@ async function closeGatewayResources(
       recordShutdownWarning(warnings, "media-cleanup");
     }
     await shutdownStep("gmail-watcher", () => params.stopGmailWatcher());
+    await shutdownStep("imap-watcher", () => stopImapWatchersOnDemand());
     // Cron heartbeat runs await this owner's queued wakes after handing off cancellation.
     // Settle those waiters before joining cron so shutdown cannot wait on its own next step.
     await shutdownStep("heartbeat-runner", () => params.heartbeatRunner.stop());

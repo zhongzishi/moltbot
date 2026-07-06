@@ -63,6 +63,8 @@ import {
 import { createCronTool } from "./tools/cron-tool.js";
 import { createDashboardTool } from "./tools/dashboard-tool.js";
 import { createDecisionTool } from "./tools/decision-tool.js";
+import { createEmailMonitorTool } from "./tools/email-monitor-tool.js";
+import { createEmailSendTool } from "./tools/email-send-tool.js";
 import { createEmbeddedCallGateway } from "./tools/embedded-gateway-stub.js";
 import { createGatewayToolCallerWrapper } from "./tools/gateway-caller-context.js";
 import { createGitHubIdentityStatusTool } from "./tools/github-identity-status-tool.js";
@@ -500,6 +502,8 @@ export function createOpenClawTools(
       agentSessionKey: options?.agentSessionKey,
       requesterAgentIdOverride: sessionAgentId,
     }),
+    createEmailMonitorTool({ sessionKey: options?.agentSessionKey }),
+    createEmailSendTool(),
     ...[createGetGoalTool, createCreateGoalTool, createUpdateGoalTool].map((createTool) =>
       createTool({ ...options, sessionAgentId }),
     ),
