@@ -16,10 +16,12 @@ import {
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { RunCronAgentTurnResult } from "../../cron/isolated-agent/run.types.js";
 import type { CronJob } from "../../cron/types.js";
+import { setImapHookDispatcher, type ImapHookDispatcher } from "../../hooks/imap-watcher.js";
 import { requestHeartbeat } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
 import type { HookAgentDispatchPayload, HooksConfigResolved } from "../hooks.js";
+import { resolveHookChannel } from "../hooks.js";
 import { createHooksRequestHandler, type HookClientIpConfig } from "./hooks-request-handler.js";
 
 /**
@@ -225,6 +227,30 @@ export function createGatewayHooksRequestHandler(params: {
 
     return runId;
   };
+
+  // IMAP watcher delivers received emails in-process (poll/IDLE), unlike Gmail's
+  // Pub/Sub webhook path. Route them through the same agent-hook dispatch so email
+  // forwarding reuses isolated-turn execution and channel delivery.
+  const imapDispatcher: ImapHookDispatcher = (value) => {
+    const channel = resolveHookChannel(value.channel);
+    if (!channel) {
+      logHooks.warn(`IMAP hook ${value.name}: invalid delivery channel "${value.channel}"`);
+      return;
+    }
+    dispatchAgentHook({
+      name: value.name,
+      message: value.message,
+      model: value.model,
+      thinking: value.thinking,
+      deliver: value.deliver,
+      channel,
+      to: value.to,
+      wakeMode: "now",
+      sessionKey: `hook:imap:${randomUUID()}`,
+      sourcePath: "imap-watcher",
+    });
+  };
+  setImapHookDispatcher(imapDispatcher);
 
   return createHooksRequestHandler({
     getHooksConfig,

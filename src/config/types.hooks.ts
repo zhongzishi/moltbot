@@ -67,6 +67,30 @@ export type HooksGmailConfig = {
   thinking?: "off" | "minimal" | "low" | "medium" | "high";
 };
 
+export type HooksImapAccountConfig = {
+  email: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  mailbox: string;
+  /** Optional model override for this IMAP account. */
+  model?: string;
+  /** Optional thinking level override for this IMAP account. */
+  thinking?: "off" | "minimal" | "low" | "medium" | "high";
+  /** Owner identifier (e.g., Feishu open_id) for delivery target. */
+  ownerId?: string;
+  /** Owner's channel for delivery (e.g., "feishu"). */
+  ownerChannel?: string;
+};
+
+export type HooksImapConfig = {
+  accounts?: HooksImapAccountConfig[];
+  /** Optional model override for IMAP hook processing (provider/model or alias). */
+  model?: string;
+  /** Optional thinking level override for IMAP hook processing. */
+  thinking?: "off" | "minimal" | "low" | "medium" | "high";
+};
+
 export type HookConfig = {
   enabled?: boolean;
   env?: Record<string, string>;
@@ -121,6 +145,7 @@ export type HooksConfig = {
   transformsDir?: string;
   mappings?: HookMappingConfig[];
   gmail?: HooksGmailConfig;
+  imap?: HooksImapConfig;
   /** Internal agent event hooks */
   internal?: InternalHooksConfig;
 };

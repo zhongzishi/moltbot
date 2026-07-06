@@ -607,6 +607,11 @@ async function stopGmailWatcherOnDemand(): Promise<void> {
   await stopGmailWatcher();
 }
 
+async function stopImapWatchersOnDemand(): Promise<void> {
+  const { stopImapWatchers } = await import("../hooks/imap-watcher.js");
+  await stopImapWatchers();
+}
+
 export async function runGatewayClosePrelude(params: {
   stopDiagnostics?: () => void;
   clearSkillsRefreshTimer?: () => void;
@@ -872,6 +877,9 @@ export function createGatewayCloseHandler(
       );
       await measureCloseStep("gmail-watcher", () =>
         shutdownStep("gmail-watcher", () => stopGmailWatcherOnDemand(), warnings),
+      );
+      await measureCloseStep("imap-watcher", () =>
+        shutdownStep("imap-watcher", () => stopImapWatchersOnDemand(), warnings),
       );
       params.cron.stop();
       params.heartbeatRunner.stop();
