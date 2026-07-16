@@ -1,24 +1,20 @@
 services:
   clawdbot-gateway:
-    build:
-      context: .
-      dockerfile: Dockerfile.gateway
+    image: clawdbot-gateway:upgrade-browser  # 叠加 chromium（回滚改回 clawdbot-gateway:upgrade）
     container_name: clawdbot-gateway
     restart: unless-stopped
-    network_mode: host
     volumes:
-      - ~/.clawdbot:/root/.clawdbot
-      - ~/.claude:/root/.claude
-      - ~/clawd:/root/clawd
-      - ~/.clawdbot/tools:/tools
-      - /mnt/data_ssd/clawdbot/extensions:/app/extensions
-      - /mnt/data_ssd/clawdbot/dist:/app/dist
-    env_file:
-      - ~/.clawdbot/.env
+      - /home/zhongzishi/.clawdbot:/home/node/.openclaw
+      - /mnt/data_ssd/chocos:/home/node/chocos
+      - /mnt/data_ssd/tianhui:/home/node/tianhui
+      - /mnt/data_ssd/clawdbot-workspace:/home/node/workspace  # main agent workspace 持久化（防 recreate 丢失）
+      - /home/zhongzishi/.ssh:/home/node/.ssh:ro
+    command: ["node", "dist/index.js", "gateway", "--allow-unconfigured", "--bind", "lan", "--port", "18789"]
+    ports:
+      - "3456:18789"
     environment:
-      - HOME=/root
-      - OPENCLAW_STATE_DIR=/root/.clawdbot
-      - OPENCLAW_INTERNAL_LOOPBACK=1
+      - HOME=/home/node
+      - NODE_ENV=production
     logging:
       driver: "json-file"
       options:
