@@ -1,6 +1,6 @@
 services:
   clawdbot-gateway:
-    image: clawdbot-gateway:upgrade-browser  # 叠加 chromium（回滚改回 clawdbot-gateway:upgrade）
+    image: clawdbot-gateway:2026.10.8  # 回滚改回 clawdbot-gateway:rollback-20261028，并恢复配置备份（UPGRADE_PLAN_2026-10-28.md 阶段 6）
     container_name: clawdbot-gateway
     restart: unless-stopped
     volumes:
@@ -9,7 +9,7 @@ services:
       - /mnt/data_ssd/tianhui:/home/node/tianhui
       - /mnt/data_ssd/clawdbot-workspace:/home/node/workspace  # main agent workspace 持久化（防 recreate 丢失）
       - /home/zhongzishi/.ssh:/home/node/.ssh:ro
-    command: ["node", "dist/index.js", "gateway", "--allow-unconfigured", "--bind", "lan", "--port", "18789"]
+    command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789"]
     ports:
       - "3456:18789"
     environment:
